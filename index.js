@@ -9,7 +9,6 @@ const path = require("path");
 const authRoutes = require("./routes/authroutes");
 
 
-
 app.use(
   cors({
     origin: "*", // Her yerden isteklere izin ver

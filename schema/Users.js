@@ -31,6 +31,7 @@ const userschema = new mongoose.Schema(
       default: false,
     },
     verificationcode: String,
+    refreshToken: String, // Add refresh token field
   },
   {
     timestamps: true,
@@ -38,3 +39,4 @@ const userschema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("User", userschema);
+

@@ -3,6 +3,24 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const Message = require("../schema/Message");
+
+// Helper function to generate tokens
+const generateTokens = (userId) => {
+  const accessToken = jwt.sign(
+    { userId },
+    process.env.JWT_SECRET,
+    { expiresIn: "25m" } // Access token expires in 25 minutes
+  );
+  
+  const refreshToken = jwt.sign(
+    { userId, type: "refresh" },
+    process.env.JWT_REFRESH_SECRET , // Use separate secret if available
+    { expiresIn: "15d" } // Refresh token expires in 7 days
+  );
+  
+  return { accessToken, refreshToken };
+};
 
 exports.signup = async (req, res) => {
   const { fullname, email, password, confirmpassword, role, privilige, phone } =
@@ -114,15 +132,17 @@ exports.login = async (req, res) => {
       return res.status(404).json({ hata: "İstifadəçi doğrulanmadı" });
     }
 
-    const token = jwt.sign(
-      { userId: existinguser._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    // Generate both access and refresh tokens
+    const { accessToken, refreshToken } = generateTokens(existinguser._id);
+
+    // Save refresh token to database
+    existinguser.refreshToken = refreshToken;
+    await existinguser.save();
 
     return res.status(200).json({
       mesaj: "Uğurlu giriş",
-      token,
+      accessToken,
+      refreshToken,
       user: {
         id: existinguser._id,
         fullname: existinguser.fullname,
@@ -134,6 +154,70 @@ exports.login = async (req, res) => {
     });
   } catch (err) {
     console.error("Giriş xətası:", err);
+    return res.status(500).json({ hata: "Server xətası baş verdi" });
+  }
+};
+
+// New function to refresh access token
+exports.refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+  
+  if (!refreshToken) {
+    return res.status(400).json({ hata: "Refresh token tələb olunur" });
+  }
+
+  try {
+    // Verify refresh token
+    const decoded = jwt.verify(
+      refreshToken, 
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
+    );
+    
+    if (decoded.type !== "refresh") {
+      return res.status(401).json({ hata: "Geçersiz token tipi" });
+    }
+
+    // Find user and check if refresh token matches
+    const user = await User.findById(decoded.userId);
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(401).json({ hata: "Geçersiz refresh token" });
+    }
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "25m" }
+    );
+
+    return res.status(200).json({
+      mesaj: "Token yeniləndi",
+      accessToken: newAccessToken,
+    });
+  } catch (err) {
+    console.error("Token yeniləmə xətası:", err);
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ hata: "Refresh token müddəti bitib" });
+    }
+    return res.status(401).json({ hata: "Geçersiz refresh token" });
+  }
+};
+
+// New function to logout and clear refresh token
+exports.logout = async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
+    }
+
+    // Clear refresh token from database
+    await User.findByIdAndUpdate(userId, { refreshToken: null });
+
+    return res.status(200).json({ mesaj: "Uğurla çıxış edildi" });
+  } catch (err) {
+    console.error("Çıxış xətası:", err);
     return res.status(500).json({ hata: "Server xətası baş verdi" });
   }
 };
@@ -163,18 +247,194 @@ exports.setgender = async (req, res) => {
 };
 
 exports.getme = async (req, res) => {
-  const userId = req.userId;
-  const token = req.token;
   try {
-    const user = await User.findById(userId).select(
-      "-password -verificationcode"
-    );
-    if (!user) {
-      return res.status(404).json({ hata: "İstifadəçi tapılmadı" });
+    const userId = req.userId;
+
+    if (!userId) {
+      console.log("❌ [getMe] userId bulunamadı");
+      return res.status(401).json({
+        success: false,
+        message: "Yetkilendirme hatası: userId bulunamadı",
+      });
     }
-    return res.status(200).json({ user });
+
+    console.log("🔍 [getMe] Searching for user with ID:");
+
+    // Şifre, doğrulama kodu ve diğer hassas alanları hariç tut
+    const hiddenFields = "-password -verificationcode -__v";
+    const user = await User.findById(userId).select(hiddenFields);
+
+    if (!user) {
+      console.log("❌ [getMe] User not found for ID:");
+      return res.status(404).json({
+        success: false,
+        message: "Kullanıcı bulunamadı",
+      });
+    }
+
+    // console.log("✅ [getMe] User found:", {
+    //   id: user._id,
+    //   fullname: user.fullname,
+    //   email: user.email,
+    //   role: user.role
+    // });
+
+    return res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error("❌ [getMe] Kullanıcı bilgisi alınırken hata:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Sunucu hatası oluştu",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+exports.changepassword = async (req, res) => {
+  const { currentpassword, newpassword } = req.body;
+  if (!req.userId) {
+    return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
+  }
+
+  if (!currentpassword || !newpassword) {
+    return res.status(400).json({ hata: "Köhnə və yeni şifrələr məcburidir" });
+  }
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(401).json({ hata: "İstifadəçi tapılmadı" });
+    }
+
+    const ismatch = await bcrypt.compare(currentpassword, user.password);
+    if (!ismatch) {
+      return res.status(401).json({ hata: "Mövcud şifrə yanlışdır" });
+    }
+
+    const hashednewpassword = await bcrypt.hash(newpassword, 10);
+    user.password = hashednewpassword;
+    await user.save();
+
+    return res.status(200).json({ mesaj: "Şifrə uğurla yeniləndi" });
+  } catch (error) {
+    console.error("Şifrə yeniləmə xətasi", error);
+    res.status(500).json({ hata: "Server xetasi bas verdi" });
+  }
+};
+
+exports.deleteaccount = async (req, res) => {
+  const { email, password } = req.body;
+  const userId = req.userId;
+
+  if (!email && !password) {
+    return res.status(400).json({ message: "Bütün sahələri doldurun" });
+  }
+
+  try {
+    const errors = [];
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "İstifadəçi tapılmadı" });
+    }
+
+    if (user.email !== email) {
+      return res.status(404).json({ message: "Email səhvdir" });
+    }
+    const ispasswordcorrect = await bcrypt.compare(password, user.password);
+
+    if (!ispasswordcorrect) {
+      return res.status(400).json({ message: "Şifrə səhvdir" });
+    }
+
+    await User.findByIdAndDelete(userId);
+    res.status(200).json({ message: "Hesab ugurla silindi" });
+  } catch (error) {
+    console.error("Hesab silinerken xeta bas verdi", error);
+    return res.status(500).json({ message: "Server xətasi" });
+  }
+};
+
+exports.updateuserinfo = async (req, res) => {
+  const { fullname, email, phone, cins } = req.body;
+
+  if (!req.userId) {
+    return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
+  }
+
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ hata: "İstifadəçi tapilmadi" });
+
+    // ✅ Email kontrolü – format ve benzersizlik (isteğe bağlı)
+    if (email && email !== user.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res
+          .status(400)
+          .json({ hata: "Zəhmət olmasa düzgün email daxil edin" });
+      }
+      user.email = email;
+    }
+
+    if (fullname !== undefined) user.fullname = fullname;
+    if (email !== undefined) user.email = email;
+    if (phone !== undefined) user.phone = phone;
+    if (cins !== undefined) user.cins = cins;
+
+    await user.save();
+    res.status(200).json({ mesaj: "Profil yeniləndi", profil: user });
   } catch (err) {
-    console.error("İstifadəçi məlumatı xətası:", err);
-    return res.status(500).json({ hata: "Server xətası baş verdi" });
+    console.error("Update hatası:", err);
+    res.status(500).json({ hata: "Server xətası" });
+  }
+};
+
+exports.sendmessage = async (req, res) => {
+  try {
+    const { fullname, title, message, userId } = req.body;
+
+    console.log("fullname", fullname);
+    if (!fullname && !title & !message) {
+      return res.status(400).json({ hata: "Bilgilər əskikdir" });
+    }
+
+    const newMessage = new Message({
+      fullname,
+      title,
+      message,
+      userId,
+    });
+
+    await newMessage.save();
+
+    res.status(201).json({ success: true, message: "Mesaj gönderildi" });
+  } catch (error) {
+    return res.status(500).json({ hata: error.message });
+  }
+};
+
+exports.getmessages = async (req, res) => {
+  try {
+    const messages = await Message.find().sort({ createdAt: -1 });
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ hata: err.message });
+  }
+};
+
+exports.replymessages = async (req, res) => {
+  try {
+    const { reply } = req.body;
+    const updated = await Message.findByIdAndUpdate(
+      req.params.id,
+      { reply, status: "answered" },
+      { new: true }
+    );
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ hata: err.message });
   }
 };
