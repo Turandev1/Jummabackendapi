@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 require("dotenv").config(); // Load environment variables
 const cors = require("cors");
 const path = require("path");
-
+require('./ping')
 
 const authRoutes = require("./routes/authroutes");
 
