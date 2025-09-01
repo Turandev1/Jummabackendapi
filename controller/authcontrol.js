@@ -438,3 +438,13 @@ exports.replymessages = async (req, res) => {
     res.status(500).json({ hata: err.message });
   }
 };
+
+
+exports.getping = async (req, res) => {
+  try {
+    res.status(200).json({mesaj:'ping basarili'})
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({mesaj:'server xetasi'})
+  }
+}

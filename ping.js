@@ -1,5 +1,5 @@
 require("dotenv").config();
-const axios = require("axios");
+const axios =require("axios");
 
 const keepAwake = async () => {
   try {
@@ -17,4 +17,4 @@ const keepAwake = async () => {
 };
 
 keepAwake();
-setInterval(keepAwake, 14 * 60 * 1000);
+setInterval(keepAwake, 10 * 60 * 1000);
