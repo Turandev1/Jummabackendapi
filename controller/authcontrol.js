@@ -10,15 +10,15 @@ const generateTokens = (userId) => {
   const accessToken = jwt.sign(
     { userId },
     process.env.JWT_SECRET,
-    { expiresIn: "25m" } // Access token expires in 25 minutes
+    { expiresIn: "1m" } // Access token expires in 25 minutes
   );
-  
+
   const refreshToken = jwt.sign(
     { userId, type: "refresh" },
-    process.env.JWT_REFRESH_SECRET , // Use separate secret if available
+    process.env.JWT_REFRESH_SECRET, // Use separate secret if available
     { expiresIn: "15d" } // Refresh token expires in 7 days
   );
-  
+
   return { accessToken, refreshToken };
 };
 
@@ -139,6 +139,7 @@ exports.login = async (req, res) => {
     existinguser.refreshToken = refreshToken;
     await existinguser.save();
 
+    console.log('accesstoken:',accessToken)
     return res.status(200).json({
       mesaj: "Uğurlu giriş",
       accessToken,
@@ -161,18 +162,15 @@ exports.login = async (req, res) => {
 // New function to refresh access token
 exports.refreshToken = async (req, res) => {
   const { refreshToken } = req.body;
-  
+
   if (!refreshToken) {
     return res.status(400).json({ hata: "Refresh token tələb olunur" });
   }
 
   try {
     // Verify refresh token
-    const decoded = jwt.verify(
-      refreshToken, 
-      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
-    );
-    
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
     if (decoded.type !== "refresh") {
       return res.status(401).json({ hata: "Geçersiz token tipi" });
     }
@@ -187,12 +185,23 @@ exports.refreshToken = async (req, res) => {
     const newAccessToken = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: "25m" }
+      { expiresIn: "1m" }
     );
+
+    const newRefreshToken = jwt.sign(
+      { userId: user._id, type: "refresh" },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" } // örnek: 7 gün geçerli
+    );
+
+    // DB’ye kaydet
+    user.refreshToken = newRefreshToken;
+    await user.save();
 
     return res.status(200).json({
       mesaj: "Token yeniləndi",
       accessToken: newAccessToken,
+      refreshToken: newRefreshToken, // frontend de bunu kaydetmeli
     });
   } catch (err) {
     console.error("Token yeniləmə xətası:", err);
@@ -207,7 +216,7 @@ exports.refreshToken = async (req, res) => {
 exports.logout = async (req, res) => {
   try {
     const userId = req.userId;
-    
+
     if (!userId) {
       return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
     }
@@ -223,15 +232,13 @@ exports.logout = async (req, res) => {
 };
 
 exports.setgender = async (req, res) => {
-  const { cins } = req.body;
-  const userId = req.userId;
-
+  const { cins, email } = req.body;
   if (!cins) {
     return res.status(400).json({ hata: "Cins seçilməlidir" });
   }
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ hata: "İstifadəçi tapılmadı" });
     }
@@ -258,7 +265,7 @@ exports.getme = async (req, res) => {
       });
     }
 
-    console.log("🔍 [getMe] Searching for user with ID:");
+    console.log("🔍 [getMe] Searching for user with ID:",userId);
 
     // Şifre, doğrulama kodu ve diğer hassas alanları hariç tut
     const hiddenFields = "-password -verificationcode -__v";
@@ -271,7 +278,8 @@ exports.getme = async (req, res) => {
         message: "Kullanıcı bulunamadı",
       });
     }
-
+    
+    console.log('userinfo:',user)
     // console.log("✅ [getMe] User found:", {
     //   id: user._id,
     //   fullname: user.fullname,
@@ -439,12 +447,11 @@ exports.replymessages = async (req, res) => {
   }
 };
 
-
 exports.getping = async (req, res) => {
   try {
-    res.status(200).json({mesaj:'ping basarili'})
+    res.status(200).json({ mesaj: "ping basarili" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({mesaj:'server xetasi'})
+    res.status(500).json({ mesaj: "server xetasi" });
   }
-}
+};

@@ -7,9 +7,9 @@ router.post("/signup", authcontroller.signup);
 router.post("/login", authcontroller.login);
 router.post("/verify", authcontroller.verifyemail);
 router.post("/refresh", authcontroller.refreshToken); // New refresh token route
-router.post("/setgender", authenticateUser, authcontroller.setgender);
+router.post("/setgender", authcontroller.setgender);
 router.get("/getme", authenticateUser, authcontroller.getme);
-router.get('getping',authcontroller.getping)
+router.get('/getping',authcontroller.getping)
 //account process routes
 router.put("/changepassword", authenticateUser, authcontroller.changepassword);
 router.delete("/deleteaccount", authenticateUser, authcontroller.deleteaccount);
