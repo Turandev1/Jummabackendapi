@@ -3,14 +3,13 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-const Message = require("../schema/Message");
 
 // Helper function to generate tokens
 const generateTokens = (userId) => {
   const accessToken = jwt.sign(
     { userId },
     process.env.JWT_SECRET,
-    { expiresIn: "1m" } // Access token expires in 25 minutes
+    { expiresIn: "25m" } // Access token expires in 25 minutes
   );
 
   const refreshToken = jwt.sign(
@@ -42,6 +41,8 @@ exports.signup = async (req, res) => {
       .status(400)
       .json({ hata: "Bu istifadəçi mövcuddur. Giriş edin" });
   }
+
+  console.log('user:',existinguser)
 
   const hashedpassword = await bcrypt.hash(password, 10);
   const verificationcode = crypto.randomInt(100000, 999999).toString();
@@ -139,7 +140,6 @@ exports.login = async (req, res) => {
     existinguser.refreshToken = refreshToken;
     await existinguser.save();
 
-    console.log('accesstoken:',accessToken)
     return res.status(200).json({
       mesaj: "Uğurlu giriş",
       accessToken,
@@ -185,7 +185,7 @@ exports.refreshToken = async (req, res) => {
     const newAccessToken = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: "1m" }
+      { expiresIn: "25m" }
     );
 
     const newRefreshToken = jwt.sign(
@@ -265,7 +265,7 @@ exports.getme = async (req, res) => {
       });
     }
 
-    console.log("🔍 [getMe] Searching for user with ID:",userId);
+    console.log("🔍 [getMe] Searching for user with ID:");
 
     // Şifre, doğrulama kodu ve diğer hassas alanları hariç tut
     const hiddenFields = "-password -verificationcode -__v";
@@ -279,7 +279,6 @@ exports.getme = async (req, res) => {
       });
     }
     
-    console.log('userinfo:',user)
     // console.log("✅ [getMe] User found:", {
     //   id: user._id,
     //   fullname: user.fullname,
@@ -308,7 +307,7 @@ exports.changepassword = async (req, res) => {
     return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
   }
 
-  if (!currentpassword || !newpassword) {
+  if (!currentpassword && !newpassword) {
     return res.status(400).json({ hata: "Köhnə və yeni şifrələr məcburidir" });
   }
   try {
@@ -404,21 +403,19 @@ exports.sendmessage = async (req, res) => {
   try {
     const { fullname, title, message, userId } = req.body;
 
-    console.log("fullname", fullname);
     if (!fullname && !title & !message) {
       return res.status(400).json({ hata: "Bilgilər əskikdir" });
     }
 
-    const newMessage = new Message({
-      fullname,
-      title,
-      message,
-      userId,
-    });
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(404).json({hata:'Istifadəçi tapılmadı'})
+    }
 
-    await newMessage.save();
+    user.mesajlar.push({ fullname, title, message })
+    await user.save()
 
-    res.status(201).json({ success: true, message: "Mesaj gönderildi" });
+    res.status(201).json({ success: true, message: "Mesaj uğurla göndərildi" });
   } catch (error) {
     return res.status(500).json({ hata: error.message });
   }

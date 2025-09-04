@@ -4,10 +4,10 @@ const mongoose = require("mongoose");
 require("dotenv").config(); // Load environment variables
 const cors = require("cors");
 const path = require("path");
-require('./ping')
+require("./ping");
 
 const authRoutes = require("./routes/authroutes");
-
+const approutes = require("./routes/mainroutes");
 
 app.use(
   cors({
@@ -29,11 +29,11 @@ mongoose
     process.exit(1); // Bağlantı hatasında uygulamadan çık
   });
 
-
 app.use(express.json());
 
-app.use('/api/auth', authRoutes);
+app.use("/api/auth", authRoutes);
+app.use("./api/app", approutes);
 
 const PORT = process.env.PORT;
 
-app.listen(PORT)
+app.listen(PORT);

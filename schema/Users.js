@@ -1,5 +1,21 @@
 const mongoose = require("mongoose");
 
+const messageschema = new mongoose.Schema(
+  {
+    fullname: { type: String, required: true },
+    title: { type: String, required: true },
+    message: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["pending", "read", "replied"],
+      default: "pending",
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
 const userschema = new mongoose.Schema(
   {
     fullname: { type: String, required: true },
@@ -32,6 +48,7 @@ const userschema = new mongoose.Schema(
     },
     verificationcode: String,
     refreshToken: String, // Add refresh token field
+    mesajlar: [messageschema],
   },
   {
     timestamps: true,
@@ -39,4 +56,3 @@ const userschema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("User", userschema);
-
