@@ -32,7 +32,7 @@ mongoose
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
-app.use("./api/app", approutes);
+app.use("/api/app", approutes);
 
 const PORT = process.env.PORT;
 

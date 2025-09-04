@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 exports.getversion = function (req, res) {
-  const versionpath = path.join(__dirname, '../versioncheck.json');
+  const versionpath = path.join(__dirname, "../versioncheck.json");
 
   fs.readFile(versionpath, "utf8", (err, data) => {
     if (err) {
