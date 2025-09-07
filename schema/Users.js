@@ -47,6 +47,7 @@ const userschema = new mongoose.Schema(
       default: false,
     },
     verificationcode: String,
+    forgotpassverifycode: String,
     refreshToken: String, // Add refresh token field
     mesajlar: [messageschema],
   },

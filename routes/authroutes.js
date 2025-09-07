@@ -8,13 +8,18 @@ router.post("/login", authcontroller.login);
 router.post("/verify", authcontroller.verifyemail);
 router.post("/refresh", authcontroller.refreshToken); // New refresh token route
 router.post("/setgender", authcontroller.setgender);
+router.get('/getping', authcontroller.getping)
+router.get('/resendcode',authcontroller.resendVerificationCode)
 router.get("/getme", authenticateUser, authcontroller.getme);
-router.get('/getping',authcontroller.getping)
 //account process routes
 router.put("/changepassword", authenticateUser, authcontroller.changepassword);
 router.delete("/deleteaccount", authenticateUser, authcontroller.deleteaccount);
 router.put("/updateuserinfo", authenticateUser, authcontroller.updateuserinfo);
 router.post("/logout", authenticateUser, authcontroller.logout); // New logout route
+router.post("/forgotpasssendcode", authcontroller.forgotpasssendcode);
+router.post("/forgotpassverify", authcontroller.forgotpassverify);
+router.post("/forgotpasschange", authcontroller.forgotpasschange);
+
 
 //message process
 router.post("/message/sendmessages", authcontroller.sendmessage);

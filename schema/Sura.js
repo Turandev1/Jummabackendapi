@@ -33,4 +33,9 @@ const suraSchema = new mongoose.Schema({
   edition: editionSchema,
 });
 
-module.exports = mongoose.model("Sura", suraSchema);
+const arabicmushaf = mongoose.model('arabicmushaf', suraSchema, 'arabicmushaf')
+const trdiyanetmushaf = mongoose.model('trdiyanetmushaf', suraSchema, 'trdiyanetmushaf')
+const mammadaliyevmushaf=mongoose.model('mammadaliyevmushaf',suraSchema,'mammadaliyevmushaf')
+const enasadmushaf=mongoose.model('enasadmushaf',suraSchema,'enasadmushaf')
+
+module.exports = {mammadaliyevmushaf,enasadmushaf,trdiyanetmushaf,arabicmushaf};

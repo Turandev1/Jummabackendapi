@@ -36,13 +36,26 @@ exports.signup = async (req, res) => {
   }
 
   const existinguser = await User.findOne({ email });
+
   if (existinguser) {
+    if (existinguser.verificationcode) {
+      return res.status(400).json({
+        hata: "İstifadəçi mövcuddur amma hesab təsdiqlənməyib. Hesabı təsdiqləyin",
+      });
+    }
     return res
       .status(400)
       .json({ hata: "Bu istifadəçi mövcuddur. Giriş edin" });
   }
 
-  console.log('user:',existinguser)
+  const existinguserbyphone = await User.findOne({ phone });
+  if (existinguserbyphone) {
+    return res.status(400).json({
+      hata: "Bu telefon nömrəsi artıq qeydiyyatdadır. Başqa nömrə daxil edin",
+    });
+  }
+
+  console.log("user:", existinguser);
 
   const hashedpassword = await bcrypt.hash(password, 10);
   const verificationcode = crypto.randomInt(100000, 999999).toString();
@@ -105,6 +118,55 @@ exports.verifyemail = async (req, res) => {
   }
 };
 
+// Kullanıcıya tekrar doğrulama kodu gönderme
+exports.resendVerificationCode = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ hata: "Email verilməlidir" });
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(400).json({ hata: "İstifadəçi tapılmadı" });
+  }
+
+  if (user.isverified) {
+    return res.status(400).json({ hata: "İstifadəçi artıq təsdiqlənib" });
+  }
+
+  // Yeni kod oluştur
+  const verificationcode = crypto.randomInt(100000, 999999).toString();
+  user.verificationcode = verificationcode;
+  await user.save();
+
+  // Email gönder
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Email doğrulama kodu",
+    text: `Email doğrulama kodunuz: ${verificationcode}`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return res.status(200).json({ mesaj: "Kod yenidən göndərildi" });
+  } catch (error) {
+    console.log("Mail gönderme hatası:", error);
+    return res.status(500).json({ hata: "Kod göndərilə bilmədi" });
+  }
+};
+
+
+
 exports.login = async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -137,7 +199,8 @@ exports.login = async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(existinguser._id);
 
     // Save refresh token to database
-    existinguser.refreshToken = refreshToken;
+    const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
+    existinguser.refreshToken = hashedrefreshtoken;
     await existinguser.save();
 
     return res.status(200).json({
@@ -151,6 +214,7 @@ exports.login = async (req, res) => {
         role: existinguser.role,
         privilige: existinguser.privilige,
         phone: existinguser.phone,
+        cins: existinguser.cins,
       },
     });
   } catch (err) {
@@ -177,7 +241,8 @@ exports.refreshToken = async (req, res) => {
 
     // Find user and check if refresh token matches
     const user = await User.findById(decoded.userId);
-    if (!user || user.refreshToken !== refreshToken) {
+    const ismatch = await bcrypt.compare(refreshToken, user.refreshToken);
+    if (!ismatch) {
       return res.status(401).json({ hata: "Geçersiz refresh token" });
     }
 
@@ -195,7 +260,8 @@ exports.refreshToken = async (req, res) => {
     );
 
     // DB’ye kaydet
-    user.refreshToken = newRefreshToken;
+    const hashedrefreshtoken = await bcrypt.hash(newRefreshToken, 10);
+    user.refreshToken = hashedrefreshtoken;
     await user.save();
 
     return res.status(200).json({
@@ -278,7 +344,7 @@ exports.getme = async (req, res) => {
         message: "Kullanıcı bulunamadı",
       });
     }
-    
+
     // console.log("✅ [getMe] User found:", {
     //   id: user._id,
     //   fullname: user.fullname,
@@ -407,13 +473,13 @@ exports.sendmessage = async (req, res) => {
       return res.status(400).json({ hata: "Bilgilər əskikdir" });
     }
 
-    const user = await User.findById(userId)
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({hata:'Istifadəçi tapılmadı'})
+      return res.status(404).json({ hata: "Istifadəçi tapılmadı" });
     }
 
-    user.mesajlar.push({ fullname, title, message })
-    await user.save()
+    user.mesajlar.push({ fullname, title, message });
+    await user.save();
 
     res.status(201).json({ success: true, message: "Mesaj uğurla göndərildi" });
   } catch (error) {
@@ -450,5 +516,77 @@ exports.getping = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ mesaj: "server xetasi" });
+  }
+};
+
+exports.forgotpasssendcode = async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(404).json({ hata: "İstifadəçi mövcud deyil" });
+  }
+
+  const verificationcode = crypto.randomInt(100000, 999999).toString();
+
+  user.forgotpassverifycode = verificationcode;
+  await user.save();
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailoptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Email doğrulama kodu",
+    text: `Email doğrulama kodunuz ${verificationcode}`,
+  };
+
+  await transporter.sendMail(mailoptions);
+
+  return res.status(201).json({
+    mesaj: "Email doğrulama kodu göndərildi,Zəhmət olmasa e-mailinizi yoxlayın",
+  });
+};
+
+exports.forgotpassverify = async (req, res) => {
+  const { email, code } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(404).json({hata:'Istifadəçi tapılmadı'})
+  }
+  if (user.forgotpassverifycode === code) {
+    user.forgotpassverifycode = null;
+    await user.save();
+
+    return res.status(200).json({ message: "Doğrulama uğurla tamamlandı" });
+  } else {
+    return res.status(400).json({ hata: "Kod yanlışdır" });
+  }
+};
+
+exports.forgotpasschange = async (req,res) => {
+  const { email, newpassword } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ hata: "Istifadəçi tapılmadı" });
+    }
+
+    const hashednewpassword = await bcrypt.hash(newpassword, 10);
+    user.password = hashednewpassword;
+    await user.save();
+    return res.status(200).json({ mesaj: "Şifrə ugurla dəyişdirildi" });
+  } catch (error) {
+    console.error(error);
   }
 };
