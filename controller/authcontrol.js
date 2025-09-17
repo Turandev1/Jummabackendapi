@@ -3,7 +3,9 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-
+const Admin = require("../schema/Admin");
+const logger = require("../utils/logger");
+const Notification = require("../schema/notification");
 // Helper function to generate tokens
 const generateTokens = (userId) => {
   const accessToken = jwt.sign(
@@ -22,77 +24,90 @@ const generateTokens = (userId) => {
 };
 
 exports.signup = async (req, res) => {
-  const { fullname, email, password, confirmpassword, role, privilige, phone } =
-    req.body;
+  try {
+    const { fullname, email, password, confirmpassword, phone } = req.body;
 
-  if (!fullname || !email || !password || !confirmpassword) {
-    return res
-      .status(400)
-      .json({ hata: "Bütün məcburi sahələr doldurulmalıdır" });
-  }
+    if (!fullname || !email || !password || !confirmpassword) {
+      return res
+        .status(400)
+        .json({ hata: "Bütün məcburi sahələr doldurulmalıdır" });
+    }
 
-  if (password !== confirmpassword) {
-    return res.status(400).json({ hata: "Parollar uyğun deyil" });
-  }
+    if (password !== confirmpassword) {
+      return res.status(400).json({ hata: "Parollar uyğun deyil" });
+    }
 
-  const existinguser = await User.findOne({ email });
+    const existinguser = await User.findOne({ email });
 
-  if (existinguser) {
-    if (existinguser.verificationcode) {
+    if (existinguser) {
+      if (!existinguser.isverified) {
+        return res.status(400).json({
+          hata: "İstifadəçi mövcuddur amma hesab təsdiqlənməyib. Hesabı təsdiqləyin",
+        });
+      }
+      return res
+        .status(400)
+        .json({ hata: "Bu istifadəçi mövcuddur. Giriş edin" });
+    }
+
+    if (phone) {
+      const existinguserbyphone = await User.findOne({ phone });
+      if (existinguserbyphone) {
+        return res.status(400).json({
+          hata: "Bu telefon nömrəsi artıq qeydiyyatdadır. Başqa nömrə daxil edin",
+        });
+      }
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
+
+    if (!passwordRegex.test(password)) {
       return res.status(400).json({
-        hata: "İstifadəçi mövcuddur amma hesab təsdiqlənməyib. Hesabı təsdiqləyin",
+        hata: "Şifrə ən azı 6 simvol olmalı, böyük hərf, kiçik hərf və rəqəm daxil edilməlidir",
       });
     }
-    return res
-      .status(400)
-      .json({ hata: "Bu istifadəçi mövcuddur. Giriş edin" });
-  }
 
-  const existinguserbyphone = await User.findOne({ phone });
-  if (existinguserbyphone) {
-    return res.status(400).json({
-      hata: "Bu telefon nömrəsi artıq qeydiyyatdadır. Başqa nömrə daxil edin",
+    const hashedpassword = await bcrypt.hash(password, 10);
+    const verificationcode = crypto.randomInt(100000, 999999).toString();
+    const newuser = new User({
+      fullname,
+      email,
+      password: hashedpassword,
+      phone,
+      isverified: false,
+      verificationcode,
     });
+
+    await newuser.save();
+    logger.info("Yeni istifadeci qeydi ugurludur", { email });
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailoptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Email doğrulama kodu",
+      text: `Email doğrulama kodunuz ${verificationcode}`,
+    };
+
+    await transporter.sendMail(mailoptions);
+    logger.info("Dogrulama kodu gonderildi", { email });
+
+    return res.status(201).json({
+      mesaj:
+        "Qeydiyyat uğurla tamamlandı,Zəhmət olmasa e-poçt kodunuzu daxil edin",
+    });
+  } catch (error) {
+    console.error(error);
+    logger.error("Signup sirasinda xeta", { email, error: error.message });
+    return res.status(500).json({ error: "Server xetasi" });
   }
-
-  console.log("user:", existinguser);
-
-  const hashedpassword = await bcrypt.hash(password, 10);
-  const verificationcode = crypto.randomInt(100000, 999999).toString();
-  const newuser = new User({
-    fullname,
-    email,
-    password: hashedpassword,
-    role,
-    privilige,
-    phone,
-    isverified: false,
-    verificationcode,
-  });
-
-  await newuser.save();
-
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  const mailoptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Email doğrulama kodu",
-    text: `Email doğrulama kodunuz ${verificationcode}`,
-  };
-
-  await transporter.sendMail(mailoptions);
-
-  return res.status(201).json({
-    mesaj:
-      "Qeydiyyat uğurla tamamlandı,Zəhmət olmasa e-poçt kodunuzu daxil edin",
-  });
 };
 
 exports.verifyemail = async (req, res) => {
@@ -165,7 +180,40 @@ exports.resendVerificationCode = async (req, res) => {
   }
 };
 
+exports.registerToken = async (req, res) => {
+  try {
+    const { expoPushToken } = req.body;
+    const userId = req.userId;
+    if (!expoPushToken || !expoPushToken.startsWith("ExponentPushToken[")) {
+      return res.status(400).json({ success: false, message: "Invalid token" });
+    }
 
+    if (!userId) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Dogrulama gerekli" });
+    }
+
+    const isValidExpoPushToken = (token) => {
+      const expoTokenRegex = /^ExponentPushToken\[[a-zA-Z0-9_-]+\]$/;
+      return expoTokenRegex.test(token);
+    };
+
+    if (!expoPushToken || !isValidExpoPushToken(expoPushToken)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid token format" });
+    }
+    // Eğer auth varsa kullanıcıyı tespit edip tokenı kullanıcıya kaydet
+    // örnek: req.userId && User.findByIdAndUpdate(...)
+    // Bu örnekte Authorization header içindeki token ile user tespit etme mantığını kullan
+    await User.findByIdAndUpdate(userId, { expoPushToken }, { new: true });
+    return res.json({ success: true, message: "Token saved for user" });
+  } catch (err) {
+    console.error("registerToken error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -178,6 +226,7 @@ exports.login = async (req, res) => {
     const existinguser = await User.findOne({ email });
 
     if (!existinguser) {
+      logger.warn("Login prosesi ugursuzdur,Istifadəçi tapılmadı", { email });
       return res
         .status(400)
         .json({ hata: "Bu istifadəçi mövcud deyil. Qeydiyyatdan keçin" });
@@ -187,7 +236,10 @@ exports.login = async (req, res) => {
       password,
       existinguser.password
     );
+
     if (!ispasswordcorrect) {
+      logger.warn("Sifre yanlışdır", { email });
+
       return res.status(400).json({ hata: "Yanlış parol" });
     }
 
@@ -202,6 +254,7 @@ exports.login = async (req, res) => {
     const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
     existinguser.refreshToken = hashedrefreshtoken;
     await existinguser.save();
+    logger.info("Login ugurludur", { email });
 
     return res.status(200).json({
       mesaj: "Uğurlu giriş",
@@ -211,7 +264,6 @@ exports.login = async (req, res) => {
         id: existinguser._id,
         fullname: existinguser.fullname,
         email: existinguser.email,
-        role: existinguser.role,
         privilige: existinguser.privilige,
         phone: existinguser.phone,
         cins: existinguser.cins,
@@ -234,6 +286,7 @@ exports.refreshToken = async (req, res) => {
   try {
     // Verify refresh token
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    logger.info("Refresh token dogrulandi", { userId: decoded.userId });
 
     if (decoded.type !== "refresh") {
       return res.status(401).json({ hata: "Geçersiz token tipi" });
@@ -241,22 +294,19 @@ exports.refreshToken = async (req, res) => {
 
     // Find user and check if refresh token matches
     const user = await User.findById(decoded.userId);
+
+    if (!user || !user.refreshToken) {
+      return res.status(401).json({ hata: "Gecersiz refresh token" });
+    }
+
     const ismatch = await bcrypt.compare(refreshToken, user.refreshToken);
     if (!ismatch) {
       return res.status(401).json({ hata: "Geçersiz refresh token" });
     }
 
-    // Generate new access token
-    const newAccessToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "25m" }
-    );
-
-    const newRefreshToken = jwt.sign(
-      { userId: user._id, type: "refresh" },
-      process.env.JWT_REFRESH_SECRET,
-      { expiresIn: "7d" } // örnek: 7 gün geçerli
+    // Generate new tokens
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(
+      user._id
     );
 
     // DB’ye kaydet
@@ -266,7 +316,7 @@ exports.refreshToken = async (req, res) => {
 
     return res.status(200).json({
       mesaj: "Token yeniləndi",
-      accessToken: newAccessToken,
+      accessToken,
       refreshToken: newRefreshToken, // frontend de bunu kaydetmeli
     });
   } catch (err) {
@@ -274,6 +324,7 @@ exports.refreshToken = async (req, res) => {
     if (err.name === "TokenExpiredError") {
       return res.status(401).json({ hata: "Refresh token müddəti bitib" });
     }
+    logger.error("Refresh token hatası", { error: err.message });
     return res.status(401).json({ hata: "Geçersiz refresh token" });
   }
 };
@@ -282,23 +333,43 @@ exports.refreshToken = async (req, res) => {
 exports.logout = async (req, res) => {
   try {
     const userId = req.userId;
+    const { refreshToken } = req.body;
 
     if (!userId) {
       return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
     }
 
+    // Verify refresh token before clearing
+    if (refreshToken) {
+      const user = await User.findById(userId);
+      if (user && user.refreshToken) {
+        const isMatch = await bcrypt.compare(refreshToken, user.refreshToken);
+        if (!isMatch) {
+          return res.status(401).json({ hata: "Geçersiz refresh token" });
+        }
+      }
+    }
+
     // Clear refresh token from database
-    await User.findByIdAndUpdate(userId, { refreshToken: null });
+    await User.findByIdAndUpdate(userId, {
+      refreshToken: null,
+      expoPushToken: null,
+      lastLogout: new Date(),
+    });
+
+    // Log logout event
+    logger.info("User logged out successfully", { userId });
 
     return res.status(200).json({ mesaj: "Uğurla çıxış edildi" });
   } catch (err) {
-    console.error("Çıxış xətası:", err);
+    console.error("Logout error:", err);
+    logger.error("Logout error", { error: err.message, userId: req.userId });
     return res.status(500).json({ hata: "Server xətası baş verdi" });
   }
 };
 
 exports.setgender = async (req, res) => {
-  const { cins, email } = req.body;
+  const { cins, email, cumemescidi } = req.body;
   if (!cins) {
     return res.status(400).json({ hata: "Cins seçilməlidir" });
   }
@@ -308,8 +379,9 @@ exports.setgender = async (req, res) => {
     if (!user) {
       return res.status(404).json({ hata: "İstifadəçi tapılmadı" });
     }
-
+    console.log("mescid:", cumemescidi);
     user.cins = cins;
+    user.cumemescidi = cumemescidi;
     await user.save();
 
     return res.status(200).json({ mesaj: "Cins uğurla qeyd edildi" });
@@ -469,7 +541,7 @@ exports.sendmessage = async (req, res) => {
   try {
     const { fullname, title, message, userId } = req.body;
 
-    if (!fullname && !title & !message) {
+    if (!fullname && !title && !message) {
       return res.status(400).json({ hata: "Bilgilər əskikdir" });
     }
 
@@ -561,7 +633,7 @@ exports.forgotpassverify = async (req, res) => {
   const user = await User.findOne({ email });
 
   if (!user) {
-    return res.status(404).json({hata:'Istifadəçi tapılmadı'})
+    return res.status(404).json({ hata: "Istifadəçi tapılmadı" });
   }
   if (user.forgotpassverifycode === code) {
     user.forgotpassverifycode = null;
@@ -573,7 +645,7 @@ exports.forgotpassverify = async (req, res) => {
   }
 };
 
-exports.forgotpasschange = async (req,res) => {
+exports.forgotpasschange = async (req, res) => {
   const { email, newpassword } = req.body;
 
   try {
@@ -588,5 +660,87 @@ exports.forgotpasschange = async (req,res) => {
     return res.status(200).json({ mesaj: "Şifrə ugurla dəyişdirildi" });
   } catch (error) {
     console.error(error);
+    return res.status(500).json({ error: "Server xetasi" });
+  }
+};
+
+exports.getimam = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const imam = await Admin.find({ email }); // sadece adminler
+
+    res.status(200).json({ success: true, users: imam });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.imamlogin = async (req, res) => {
+  const { email, seccode, password } = req.body;
+  const user = await Admin.findOne({ email });
+
+  if (!user) {
+    return res.status(400).json({ hata: "İstifadəçi tapılmadı" });
+  }
+
+  const matchpass = await bcrypt.compare(password, user.password);
+  const matchseccode = await bcrypt.compare(seccode, user.securitycode);
+
+  if (!matchpass) {
+    return res.status(400).json({ hata: "Şifrə yanlışdır" });
+  }
+
+  if (!matchseccode) {
+    return res.status(400).json({ hata: "Təhlükəsizlik kodu yanlışdır" });
+  }
+
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+
+  return res.status(200).json({
+    mesaj: "Uğurlu giriş",
+    token,
+    user: {
+      id: user._id,
+      phone: user.phone,
+      email: user.email,
+      role: user.role,
+      surname: user.surname,
+      name: user.name,
+      cins: user.cins,
+    },
+  });
+};
+
+// Add to backend/controller/authcontrol.js
+exports.getNotifications = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const notifications = await Notification.find({
+      sentTo: userId,
+    }).sort({ createdAt: -1 });
+
+    res.json({ success: true, notifications });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.changemescid = async (req, res) => {
+  const { cumemescidi } = req.body;
+  const userId = req.userId;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(400).json({ hata: "Istifadəçi tapılmadı" });
+    }
+
+    user.cumemescidi = cumemescidi;
+    await user.save();
+    return res.status(200).json({ mesaj: "ugurla deyisdirildi" ,user});
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Server xetasi" });
   }
 };

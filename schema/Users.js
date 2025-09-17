@@ -26,16 +26,7 @@ const userschema = new mongoose.Schema(
       enum: ["male", "female"],
       default: null,
     },
-    role: {
-      type: String,
-      enum: ["user", "admin", "seller", "imam"],
-      default: "user",
-    },
-    privilige: {
-      type: String,
-      enum: ["user", "admin", "superadmin"],
-      default: "user",
-    },
+
     phone: {
       type: String,
       required: true,
@@ -47,13 +38,33 @@ const userschema = new mongoose.Schema(
       default: false,
     },
     verificationcode: String,
+    cumemescidi:{type:Object},
     forgotpassverifycode: String,
     refreshToken: String, // Add refresh token field
     mesajlar: [messageschema],
+    expoPushToken: { type: String, default: null },
+    notificationPreferences: {
+      prayerReminders: { type: Boolean, default: true },
+      announcements: { type: Boolean, default: true },
+      messages: { type: Boolean, default: true },
+      marketing: { type: Boolean, default: false },
+    },
+    lastNotificationRead: { type: Date, default: Date.now },
+    deviceInfo: {
+      platform: String,
+      version: String,
+      lastSeen: { type: Date, default: Date.now },
+    },
   },
+
   {
     timestamps: true,
   }
 );
+
+// File: backend/schema/Users.js
+userschema.index({ expoPushToken: 1 });
+userschema.index({ isverified: 1 });
+userschema.index({ refreshToken: 1 });
 
 module.exports = mongoose.model("User", userschema);

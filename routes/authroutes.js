@@ -2,28 +2,37 @@ const express = require("express");
 const router = express.Router();
 const authcontroller = require("../controller/authcontrol");
 const authenticateUser = require("../middleware/authmiddle");
+const validatelogin =require('../middleware/validatelogin')
+const ratelimit = require('../middleware/ratelimiter')
 
-router.post("/signup", authcontroller.signup);
-router.post("/login", authcontroller.login);
-router.post("/verify", authcontroller.verifyemail);
-router.post("/refresh", authcontroller.refreshToken); // New refresh token route
+
+router.post("/signup",ratelimit.authLimiter, authcontroller.signup);
+router.post("/login", validatelogin,ratelimit.authLimiter, authcontroller.login);
+router.post("/verify",ratelimit.authLimiter, authcontroller.verifyemail);
+router.post("/register-token",authenticateUser, authcontroller.registerToken);
+const { tokenRefreshLimiter } = require('../middleware/ratelimiter')
+router.post("/refresh", tokenRefreshLimiter, authcontroller.refreshToken); // New refresh token route
 router.post("/setgender", authcontroller.setgender);
-router.get('/getping', authcontroller.getping)
-router.get('/resendcode',authcontroller.resendVerificationCode)
+router.get("/getping", authcontroller.getping);
+router.get("/resendcode",ratelimit.authLimiter, authcontroller.resendVerificationCode);
 router.get("/getme", authenticateUser, authcontroller.getme);
 //account process routes
 router.put("/changepassword", authenticateUser, authcontroller.changepassword);
 router.delete("/deleteaccount", authenticateUser, authcontroller.deleteaccount);
 router.put("/updateuserinfo", authenticateUser, authcontroller.updateuserinfo);
 router.post("/logout", authenticateUser, authcontroller.logout); // New logout route
-router.post("/forgotpasssendcode", authcontroller.forgotpasssendcode);
-router.post("/forgotpassverify", authcontroller.forgotpassverify);
+router.post("/forgotpasssendcode",ratelimit.authLimiter, authcontroller.forgotpasssendcode);
+router.post("/forgotpassverify",ratelimit.authLimiter, authcontroller.forgotpassverify);
 router.post("/forgotpasschange", authcontroller.forgotpasschange);
+router.post("/imamlogin", authcontroller.imamlogin);
+router.post("/getimam", authcontroller.getimam);
+router.get("/getnotifications", authenticateUser, authcontroller.getNotifications);
 
 
-//message process
-router.post("/message/sendmessages", authcontroller.sendmessage);
-router.get("/message/getmessages", authcontroller.getmessages);
-router.put("/message/:id/reply", authcontroller.replymessages);
+//
+router.put('/changemescid',authenticateUser,authcontroller.changemescid)
+
+
+// message routes removed due to missing Message model; reintroduce when implemented
 
 module.exports = router;

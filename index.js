@@ -5,16 +5,40 @@ require("dotenv").config(); // Load environment variables
 const cors = require("cors");
 const path = require("path");
 require("./ping");
-
+const {validateEnvironment}=require('./config/environment');
+const { generalLimiter } = require("./middleware/ratelimiter");
+validateEnvironment()
 const authRoutes = require("./routes/authroutes");
 const approutes = require("./routes/mainroutes");
+const adminroutes = require("./routes/adminroute");
+const errorhandler = require("./middleware/errorhandler");
+const notificationroutes = require("./routes/notificationroute");
 
-app.use(
-  cors({
-    origin: "*", // Her yerden isteklere izin ver
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"], // İzin verilen HTTP metotları
-  })
-);
+const allowedOrigins = [
+  "http://localhost:3000", // Web dev
+  "exp://192.168.1.68:8081", // Mobil dev (Expo)
+  "https://jummabackend.com", // Production web
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Mobil uygulamalardan gelen isteklerde origin olmayabilir
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 
 if (!process.env.MONGO_URI) {
   console.error("Hata: MONGO_URI ortam değişkeni tanımlı değil.");
@@ -30,10 +54,17 @@ mongoose
   });
 
 app.use(express.json());
+// Rate limiter önce
+app.use("/api/auth", generalLimiter, authRoutes);
+app.use("/api/app", generalLimiter, approutes);
+app.use('/api/notification', generalLimiter, notificationroutes);
+app.use("/webapi/auth", adminroutes);
 
-app.use("/api/auth", authRoutes);
-app.use("/api/app", approutes);
+// Global error handler en sonda kalmalı
+app.use(errorhandler);
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
-app.listen(PORT);
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
