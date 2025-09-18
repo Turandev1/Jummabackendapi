@@ -112,12 +112,14 @@ exports.sendcumanotification = async (req, res) => {
 
     // Kullanıcıları filtrele
     const users = await User.find({
-      "cumemescidi.id":mescid.id,
-      expoPushToken: { $ne: null }, // expo token olanlar
+      cumemescidi: {
+        $elemMatch: { id: Number(mescid[0].id) },
+      },
+      expoPushToken: { $ne: null },
     }).select("_id expoPushToken cumemescidi");
-
-
-    console.log('users:',users)
+    console.log("mescid:", mescid);
+console.log('type:',typeof mescid[0].id)
+    console.log("users:", users);
 
     if (!users.length) {
       return res.status(404).json({ error: "Kayıtlı kullanici bulunamadi" });

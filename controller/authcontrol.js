@@ -353,7 +353,7 @@ exports.logout = async (req, res) => {
     // Clear refresh token from database
     await User.findByIdAndUpdate(userId, {
       refreshToken: null,
-      expoPushToken: null,
+      // expoPushToken: null,
       lastLogout: new Date(),
     });
 
