@@ -19,14 +19,14 @@ const notificationLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 5, // 5 notifications per minute
   message: "Too many notification requests",
-  keyGenerator: (req) => req.userId || req.ip,
+  keyGenerator: (req) => req.userId || rateLimit.ipKeyGenerator(req,res),
 });
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3, // 3 password reset attempts per 15 minutes
   message: "Too many password reset attempts",
-  keyGenerator: (req) => req.body.email || rateLimit.ipKeyGenerator,
+  keyGenerator: (req) => req.body.email || rateLimit.ipKeyGenerator(req,res),
 });
 
 const tokenRefreshLimiter = rateLimit({

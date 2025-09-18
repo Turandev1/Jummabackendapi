@@ -5,7 +5,7 @@ const validateLogin = [
   body("email").isEmail().normalizeEmail(),
   body("password")
     .isLength({ min: 5 })
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/),
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
