@@ -3,9 +3,6 @@ const User = require("../schema/Users");
 const Imam = require("../schema/Admin");
 const Notification = require("../schema/notification");
 
-
-
-
 exports.sendcumanotification = async (req, res) => {
   try {
     const { senderId, title, body, mescid } = req.body;
@@ -23,9 +20,7 @@ exports.sendcumanotification = async (req, res) => {
     const mescidObj = Array.isArray(mescid) ? mescid[0] : mescid;
 
     const users = await User.find({
-      $or: [
-        { "cumemescidi.id": Number(mescidObj.id) },
-      ],
+      $or: [{ "cumemescidi.id": Number(mescidObj.id) }],
       expoPushToken: { $ne: null },
     }).select("_id expoPushToken cumemescidi");
 
