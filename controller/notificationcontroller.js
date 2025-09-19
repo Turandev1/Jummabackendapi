@@ -18,15 +18,18 @@ exports.sendcumanotification = async (req, res) => {
 
     // Kullanıcıları filtrele
     const mescidObj = Array.isArray(mescid) ? mescid[0] : mescid;
+    console.log("mescid:", mescid);
+    console.log("type:", typeof mescid[0].id);
 
     const users = await User.find({
       $or: [{ "cumemescidi.id": Number(mescidObj.id) }],
       expoPushToken: { $ne: null },
     }).select("_id expoPushToken cumemescidi");
 
-    console.log("mescid:", mescid);
-    console.log("type:", typeof mescid[0].id);
+
     console.log("users:", users);
+
+
 
     if (!users.length) {
       return res.status(404).json({ error: "Kayıtlı kullanici bulunamadi" });
