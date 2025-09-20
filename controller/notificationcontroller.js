@@ -5,7 +5,7 @@ const Notification = require("../schema/notification");
 
 exports.sendcumanotification = async (req, res) => {
   try {
-    const { senderId, title, body, mescid } = req.body;
+    const { senderId, title, body, adminId, userr } = req.body;
 
     if (!senderId || !title || !body) {
       return res.status(400).json({ hata: "Eksik veri" });
@@ -17,20 +17,16 @@ exports.sendcumanotification = async (req, res) => {
     }
 
     // Kullanıcıları filtrele
-    const mescidObj = Array.isArray(mescid) ? mescid[0] : mescid;
-    console.log("mescid:", mescid);
-    console.log("type:", typeof mescid[0].id);
-
+    if (!adminId) {
+      return res.status(400).json({ error: "adminId eksik" });
+    }
+    console.log("user:", userr);
     const users = await User.find({
-      $or: [{ "cumemescidi.id": Number(mescidObj.id) }],
+      "cumemescidi.id": adminId,
       expoPushToken: { $ne: null },
     }).select("_id expoPushToken cumemescidi");
 
-
     console.log("users:", users);
-
-
-
     if (!users.length) {
       return res.status(404).json({ error: "Kayıtlı kullanici bulunamadi" });
     }
@@ -61,7 +57,7 @@ exports.sendcumanotification = async (req, res) => {
       senderId: sender._id,
       senderRole: sender.role,
       senderName: `${sender.name} ${sender.surname}`,
-      mescidId: mescid.id || null,
+      mescidId: adminId || null,
       sentTo: users.map((u) => u._id),
       sentCount: users.length,
       status: "sent",
@@ -76,8 +72,15 @@ exports.sendcumanotification = async (req, res) => {
       notificationId: notification._id,
     });
   } catch (err) {
-    console.error("sendNotificationToAll error:", err);
-    console.error("sendNotificationToAll error:", err.message, err.stack);
+    console.error("sendcumanotification error:", err);
+    console.log("sendcumanotification error:", err);
+    console.error("sendcumanotification error:", err.message, err.stack);
+    console.log("sendcumanotification error:", err.message, err.stack);
+    // Only log adminId if it exists in req.body
+    console.log(
+      "admin:",
+      req.body && req.body.adminId ? req.body.adminId : "undefined"
+    );
 
     return res.status(500).json({ error: "Sunucu hatası" });
   }
