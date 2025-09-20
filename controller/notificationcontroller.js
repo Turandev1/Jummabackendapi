@@ -65,7 +65,7 @@ exports.sendcumanotification = async (req, res) => {
       exporesults.push(response.data);
     }
 
-    const exporesult = exporesponse.data;
+    const exporesult = exporesults;
     // 5. Bildirimi DB’ye kaydet
     const notification = new Notification({
       announce: {
