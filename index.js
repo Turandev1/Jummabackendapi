@@ -5,9 +5,9 @@ require("dotenv").config(); // Load environment variables
 const cors = require("cors");
 const path = require("path");
 require("./ping");
-const {validateEnvironment}=require('./config/environment');
+const { validateEnvironment } = require("./config/environment");
 const { generalLimiter } = require("./middleware/ratelimiter");
-validateEnvironment()
+validateEnvironment();
 const authRoutes = require("./routes/authroutes");
 const approutes = require("./routes/mainroutes");
 const adminroutes = require("./routes/adminroute");
@@ -57,12 +57,12 @@ app.use(express.json());
 // Rate limiter önce
 app.use("/api/auth", generalLimiter, authRoutes);
 app.use("/api/app", generalLimiter, approutes);
-app.use('/api/notification', generalLimiter, notificationroutes);
+app.use("/api/notification", generalLimiter, notificationroutes);
 app.use("/webapi/auth", adminroutes);
 
 // Global error handler en sonda kalmalı
 app.use(errorhandler);
-
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
