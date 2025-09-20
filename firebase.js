@@ -1,6 +1,27 @@
 const admin = require("firebase-admin");
 require("dotenv").config(); // .env yüklemek için
 
+
+const validateFirebaseConfig = () => {
+  const required = [
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_CLIENT_EMAIL",
+    "FIREBASE_PRIVATE_KEY",
+  ];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.error("❌ Missing Firebase env vars:", missing);
+    process.exit(1);
+  }
+};
+validateFirebaseConfig();
+
+
+
+
+
+
+
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -9,13 +30,28 @@ admin.initializeApp({
   }),
 });
 
-async function sendNotification(tokens, title, body) {
+const sendFCMNotification = async (tokens, title, body, data = {}) => {
+  if (!tokens.length) return;
+
   const message = {
-    notification: { title, body },
+    notification: {
+      title,
+      body,
+    },
+    data, // custom key-value pair
     tokens,
   };
-  const response = await admin.messaging().sendMulticast(message);
-  console.log("Sent:", response.successCount, "Failed:", response.failureCount);
-}
 
-module.exports = { sendNotification };
+  try {
+    const response = await admin.messaging().sendEachForMulticast(message);
+    console.log("FCM response:", response);
+    return response;
+  } catch (error) {
+    console.error("FCM send error:", error);
+    throw error;
+  }
+};
+
+
+
+module.exports = { sendFCMNotification };

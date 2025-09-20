@@ -16,33 +16,26 @@ const messageschema = new mongoose.Schema(
   }
 );
 
+
 const userschema = new mongoose.Schema(
   {
     fullname: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    cins: {
-      type: String,
-      enum: ["male", "female"],
-      default: null,
-    },
-
+    cins: { type: String, enum: ["male", "female"], default: null },
     phone: {
       type: String,
       required: true,
       unique: true,
       match: [/^\+?[0-9]{10,15}$/, "Geçerli bir telefon numarası giriniz"],
     },
-    isverified: {
-      type: Boolean,
-      default: false,
-    },
+    isverified: { type: Boolean, default: false },
     verificationcode: String,
-    cumemescidi:{type:Object},
+    cumemescidi: { type: Object },
     forgotpassverifycode: String,
-    refreshToken: String, // Add refresh token field
+    refreshToken: String,
     mesajlar: [messageschema],
-    expoPushToken: { type: String, default: null },
+    fcmToken: { type: [String], default: [] }, // burası düzeltildi
     notificationPreferences: {
       prayerReminders: { type: Boolean, default: true },
       announcements: { type: Boolean, default: true },
@@ -56,14 +49,11 @@ const userschema = new mongoose.Schema(
       lastSeen: { type: Date, default: Date.now },
     },
   },
-
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// File: backend/schema/Users.js
-userschema.index({ expoPushToken: 1 });
+// indeksler
+userschema.index({ fcmToken: 1 });
 userschema.index({ isverified: 1 });
 userschema.index({ refreshToken: 1 });
 

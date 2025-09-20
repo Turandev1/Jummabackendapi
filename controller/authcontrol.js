@@ -182,9 +182,9 @@ exports.resendVerificationCode = async (req, res) => {
 
 exports.registerToken = async (req, res) => {
   try {
-    const { expoPushToken } = req.body;
+    const { fcmToken } = req.body;
     const userId = req.userId;
-    if (!expoPushToken || !expoPushToken.startsWith("ExponentPushToken[")) {
+    if (!fcmToken || !fcmToken.startsWith("ExponentPushToken[")) {
       return res.status(400).json({ success: false, message: "Invalid token" });
     }
 
@@ -199,15 +199,22 @@ exports.registerToken = async (req, res) => {
       return expoTokenRegex.test(token);
     };
 
-    if (!expoPushToken || !isValidExpoPushToken(expoPushToken)) {
+    console.log("Incoming fcmToken:", req.body.fcmToken, "UserId:", req.userId);
+
+    if (!fcmToken || !isValidExpoPushToken(fcmToken)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid token format" });
     }
-    // Eğer auth varsa kullanıcıyı tespit edip tokenı kullanıcıya kaydet
-    // örnek: req.userId && User.findByIdAndUpdate(...)
-    // Bu örnekte Authorization header içindeki token ile user tespit etme mantığını kullan
-    await User.findByIdAndUpdate(userId, { expoPushToken }, { new: true });
+
+    // Önce token başka kullanıcılarda varsa sil
+    await User.updateMany({}, { $pull: { fcmToken: fcmToken } });
+
+    // Kullanıcının array'ine ekle
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { fcmToken: fcmToken },
+    });
+
     return res.json({ success: true, message: "Token saved for user" });
   } catch (err) {
     console.error("registerToken error:", err);
@@ -353,7 +360,7 @@ exports.logout = async (req, res) => {
     // Clear refresh token from database
     await User.findByIdAndUpdate(userId, {
       refreshToken: null,
-      // expoPushToken: null,
+      // fcmToken: null,
       lastLogout: new Date(),
     });
 
@@ -699,7 +706,7 @@ exports.imamlogin = async (req, res) => {
 
   return res.status(200).json({
     mesaj: "Uğurlu giriş",
-    token,
+    accessToken: token,
     user: {
       id: user._id,
       phone: user.phone,
