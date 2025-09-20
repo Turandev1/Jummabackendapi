@@ -45,7 +45,22 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
   try {
     const response = await admin.messaging().sendEachForMulticast(message);
     console.log("FCM response:", response);
+   
+
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          console.error(
+            `❌ Token ${tokens[idx]} error:`,
+            resp.error.code,
+            resp.error.message
+          );
+        }
+      });
+
+   
+   
     return response;
+
   } catch (error) {
     console.error("FCM send error:", error);
     throw error;
