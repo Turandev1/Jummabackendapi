@@ -182,45 +182,69 @@ exports.resendVerificationCode = async (req, res) => {
 
 exports.registerToken = async (req, res) => {
   try {
-    const { fcmToken } = req.body;
+    let { fcmToken } = req.body;
     const userId = req.userId;
-    if (!fcmToken || !fcmToken.startsWith("ExponentPushToken[")) {
-      return res.status(400).json({ success: false, message: "Invalid token" });
-    }
 
+    // Basic checks
+    if (!fcmToken) {
+      return res.status(400).json({ success: false, message: "Token gerekli" });
+    }
     if (!userId) {
       return res
         .status(401)
         .json({ success: false, message: "Dogrulama gerekli" });
     }
 
-    const isValidExpoPushToken = (token) => {
-      const expoTokenRegex = /^ExponentPushToken\[[a-zA-Z0-9_-]+\]$/;
-      return expoTokenRegex.test(token);
-    };
-
-    console.log("Incoming fcmToken:", req.body.fcmToken, "UserId:", req.userId);
-
-    if (!fcmToken || !isValidExpoPushToken(fcmToken)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid token format" });
+    // Eğer frontend obje yolladıysa (ör. { data: '...' }) normalize et
+    if (typeof fcmToken === "object" && fcmToken !== null) {
+      if (typeof fcmToken.data === "string") {
+        fcmToken = fcmToken.data;
+      } else {
+        // stringify fallback (gerektiğinde)
+        fcmToken = String(fcmToken);
+      }
     }
 
-    // Önce token başka kullanıcılarda varsa sil
+    // Trim ve kontrol
+    fcmToken = String(fcmToken).trim();
+    if (!fcmToken) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Token boş olamaz" });
+    }
+
+    // Token format kontrolü: Expo token veya "muhtemel FCM" kabul et
+    const isExpoToken = /^ExponentPushToken\[[^\]]+\]$/.test(fcmToken);
+    // Muhtemel FCM: boşluk içermeyen, yeterince uzun (20+) bir string kabul et
+    const isLikelyFcm =
+      fcmToken.length >= 20 &&
+      fcmToken.length <= 4096 &&
+      /^\S+$/.test(fcmToken);
+
+    if (!isExpoToken && !isLikelyFcm) {
+      console.log("Rejected token format:", fcmToken);
+      return res
+        .status(400)
+        .json({ success: false, message: "Geçersiz token formatı" });
+    }
+
+    console.log("Incoming push token:", fcmToken, "UserId:", userId);
+
+    // Başka kullanıcıların elindeki aynı token'ı temizle
     await User.updateMany({}, { $pull: { fcmToken: fcmToken } });
 
-    // Kullanıcının array'ine ekle
+    // Kullanıcının token array'ine ekle (duplicate engellemek için $addToSet)
     await User.findByIdAndUpdate(userId, {
       $addToSet: { fcmToken: fcmToken },
     });
 
-    return res.json({ success: true, message: "Token saved for user" });
+    return res.json({ success: true, message: "Token kaydedildi" });
   } catch (err) {
     console.error("registerToken error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
