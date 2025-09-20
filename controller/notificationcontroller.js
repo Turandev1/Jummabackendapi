@@ -5,7 +5,7 @@ const Notification = require("../schema/notification");
 
 exports.sendcumanotification = async (req, res) => {
   try {
-    const { senderId, title, body, adminId, userr } = req.body;
+    const { senderId, title, body, mescidId, admin } = req.body;
 
     if (!senderId || !title || !body) {
       return res.status(400).json({ hata: "Eksik veri" });
@@ -17,16 +17,22 @@ exports.sendcumanotification = async (req, res) => {
     }
 
     // Kullanıcıları filtrele
-    if (!adminId) {
-      return res.status(400).json({ error: "adminId eksik" });
+    if (!mescidId) {
+      return res.status(400).json({ error: "mescidId eksik" });
     }
-    console.log("user:", userr);
+
+    console.log("user:", admin);
+    console.log("user:", mescidId);
+
     const users = await User.find({
-      "cumemescidi.id": adminId,
+      "cumemescidi.id": mescidId,
       expoPushToken: { $ne: null },
     }).select("_id expoPushToken cumemescidi");
 
-    console.log("users:", users);
+    users.map((user) => {
+      console.log("userid", user.cumemescidi);
+    });
+
     if (!users.length) {
       return res.status(404).json({ error: "Kayıtlı kullanici bulunamadi" });
     }
@@ -39,13 +45,25 @@ exports.sendcumanotification = async (req, res) => {
       data: { userId: u._id.toString(), type: "announcement" },
     }));
 
-    const exporesponse = await axios.post(
-      "https://exp.host/--/api/v2/push/send",
-      messages, // doğrudan array
-      {
-        headers: { "Content-Type": "application/json" },
+    function chunkArray(array, size) {
+      const result = [];
+      for (let i = 0; i < array.length; i += size) {
+        result.push(array.slice(i, i + size));
       }
-    );
+      return result;
+    }
+
+    const chunks = chunkArray(messages, 100);
+
+    let exporesults = [];
+    for (const chunk of chunks) {
+      const response = await axios.post(
+        "https://exp.host/--/api/v2/push/send",
+        chunk,
+        { headers: { "Content-Type": "application/json" } }
+      );
+      exporesults.push(response.data);
+    }
 
     const exporesult = exporesponse.data;
     // 5. Bildirimi DB’ye kaydet
@@ -57,7 +75,7 @@ exports.sendcumanotification = async (req, res) => {
       senderId: sender._id,
       senderRole: sender.role,
       senderName: `${sender.name} ${sender.surname}`,
-      mescidId: adminId || null,
+      mescidId: mescidId || null,
       sentTo: users.map((u) => u._id),
       sentCount: users.length,
       status: "sent",
