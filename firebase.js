@@ -63,6 +63,14 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       return response;
     });
 
+    console.log("firebase initialized", admin.app().options);
+    if (
+      process.env.FIREBASE_PROJECT_ID ||
+      process.env.FIREBASE_PRIVATE_KEY ||
+      process.env.FIREBASE_CLIENT_EMAIL
+    ) {
+      console.log("env deyisenleri var");
+    }
     const allResponses = await Promise.all(sendPromises);
     console.log(
       "✅ FCM bildirimleri gönderildi:",
