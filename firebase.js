@@ -1,7 +1,7 @@
 const admin = require("firebase-admin");
 require("dotenv").config(); // .env yüklemek için
 
-
+// 🔹 Firebase config kontrolü
 const validateFirebaseConfig = () => {
   const required = [
     "FIREBASE_PROJECT_ID",
@@ -16,12 +16,7 @@ const validateFirebaseConfig = () => {
 };
 validateFirebaseConfig();
 
-
-
-
-
-
-
+// 🔹 Firebase başlatma
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -30,43 +25,56 @@ admin.initializeApp({
   }),
 });
 
+// 🔹 FCM bildirim fonksiyonu
 const sendFCMNotification = async (tokens, title, body, data = {}) => {
   if (!tokens.length) return;
 
-  const message = {
-    notification: {
-      title,
-      body,
-    },
-    data, // custom key-value pair
-    tokens,
-  };
+  const chunkSize = 500; // FCM max 500 token/batch
+  const batches = [];
+
+  // 🔹 Tokenları 500'lü batchlere ayır
+  for (let i = 0; i < tokens.length; i += chunkSize) {
+    const chunk = tokens.slice(i, i + chunkSize);
+    batches.push(chunk);
+  }
 
   try {
-    const response = await admin.messaging().sendEachForMulticast(message);
-    console.log("FCM response:", response);
-   
+    // 🔹 Batchleri paralel gönder
+    const sendPromises = batches.map(async (chunk) => {
+      const message = {
+        notification: { title, body },
+        data,
+        tokens: chunk,
+      };
 
+      const response = await admin.messaging().sendEachForMulticast(message);
+
+      // 🔹 Hatalı tokenleri logla
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
           console.error(
-            `❌ Token ${tokens[idx]} error:`,
+            `❌ Token ${chunk[idx]} error:`,
             resp.error.code,
             resp.error.message
           );
         }
       });
 
-   
-   
-    return response;
+      return response;
+    });
 
+    const allResponses = await Promise.all(sendPromises);
+    console.log(
+      "✅ FCM bildirimleri gönderildi:",
+      allResponses.length,
+      "batch"
+    );
+
+    return allResponses;
   } catch (error) {
-    console.error("FCM send error:", error);
+    console.error("❌ FCM send error:", error);
     throw error;
   }
 };
-
-
 
 module.exports = { sendFCMNotification };
