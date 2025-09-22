@@ -27,8 +27,8 @@ exports.sendcumanotification = async (req, res) => {
       return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
     await sendFCMNotification(tokens, title, body, {
-      screen: "MainPage",
-      params: { mescidId, senderName: sender.name },
+      screen: "mainpage",
+      senderName: sender.name ,
       customKey: "announcement",
       type: "announcement",
       senderId: sender._id.toString(),
