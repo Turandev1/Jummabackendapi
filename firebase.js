@@ -7,6 +7,7 @@ const validateFirebaseConfig = () => {
     "FIREBASE_PROJECT_ID",
     "FIREBASE_CLIENT_EMAIL",
     "FIREBASE_PRIVATE_KEY",
+    "FIREBASE_SENDER_ID", // Add SenderId validation
   ];
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
@@ -64,12 +65,14 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
     });
 
     console.log("firebase initialized", admin.app().options);
-    if (
-      process.env.FIREBASE_PROJECT_ID ||
-      process.env.FIREBASE_PRIVATE_KEY ||
-      process.env.FIREBASE_CLIENT_EMAIL
-    ) {
-      console.log("env deyisenleri var");
+    console.log("✅ FCM SenderId:", process.env.FIREBASE_SENDER_ID);
+    
+    // Validate SenderId matches expected value
+    if (process.env.FIREBASE_SENDER_ID !== "3632291545") {
+      console.warn("⚠️ SenderId mismatch detected:", {
+        expected: "3632291545",
+        actual: process.env.FIREBASE_SENDER_ID
+      });
     }
     const allResponses = await Promise.all(sendPromises);
     console.log(

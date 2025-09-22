@@ -6,9 +6,10 @@ const requiredEnvVars = [
   "EMAIL_USER",
   "EMAIL_PASS",
   "NODE_ENV",
-  "FIREBASE_PROJECT_ID", // Add these
-  "FIREBASE_CLIENT_EMAIL", // Add these
+  "FIREBASE_PROJECT_ID",
+  "FIREBASE_CLIENT_EMAIL",
   "FIREBASE_PRIVATE_KEY",
+  "FIREBASE_SENDER_ID", // Add SenderId validation
 ];
 
 const validateEnvironment = () => {
