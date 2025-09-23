@@ -31,7 +31,6 @@ exports.sendcumanotification = async (req, res) => {
       senderName: sender.name ,
       customKey: "announcement",
       type: "announcement",
-      senderId: sender._id.toString(),
     });
 
     const notification = new Notification({
