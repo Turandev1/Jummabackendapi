@@ -66,14 +66,6 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
 
     console.log("firebase initialized", admin.app().options);
     console.log("✅ FCM SenderId:", process.env.FIREBASE_SENDER_ID);
-    
-    // Validate SenderId matches expected value
-    if (process.env.FIREBASE_SENDER_ID !== "3632291545") {
-      console.warn("⚠️ SenderId mismatch detected:", {
-        expected: "3632291545",
-        actual: process.env.FIREBASE_SENDER_ID
-      });
-    }
     const allResponses = await Promise.all(sendPromises);
     console.log(
       "✅ FCM bildirimleri gönderildi:",
