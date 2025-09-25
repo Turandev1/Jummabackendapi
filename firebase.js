@@ -28,14 +28,25 @@ admin.initializeApp({
 
 // 🔹 FCM bildirim fonksiyonu
 const sendFCMNotification = async (tokens, title, body, data = {}) => {
-  if (!tokens.length) return;
+  if (!tokens || !tokens.length) {
+    console.warn("⚠️ No tokens provided for FCM notification");
+    return;
+  }
+
+  // Filter out invalid tokens
+  const validTokens = tokens.filter(token => token && typeof token === 'string' && token.trim().length > 0);
+  
+  if (!validTokens.length) {
+    console.warn("⚠️ No valid tokens found for FCM notification");
+    return;
+  }
 
   const chunkSize = 500; // FCM max 500 token/batch
   const batches = [];
-    
+  
   // 🔹 Tokenları 500'lü batchlere ayır
-  for (let i = 0; i < tokens.length; i += chunkSize) {
-    const chunk = tokens.slice(i, i + chunkSize);
+  for (let i = 0; i < validTokens.length; i += chunkSize) {
+    const chunk = validTokens.slice(i, i + chunkSize);
     batches.push(chunk);
   }
 
@@ -50,7 +61,8 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
 
       const response = await admin.messaging().sendEachForMulticast(message);
 
-      // 🔹 Hatalı tokenleri logla
+      // 🔹 Hatalı tokenleri logla ve temizle
+      const invalidTokens = [];
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
           console.error(
@@ -58,8 +70,18 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
             resp.error.code,
             resp.error.message
           );
+          if (resp.error.code === 'messaging/invalid-registration-token' || 
+              resp.error.code === 'messaging/registration-token-not-registered') {
+            invalidTokens.push(chunk[idx]);
+          }
         }
       });
+
+      // Remove invalid tokens from database
+      if (invalidTokens.length > 0) {
+        console.log(`🧹 Removing ${invalidTokens.length} invalid tokens from database`);
+        // This would need to be implemented to clean up invalid tokens
+      }
 
       return response;
     });

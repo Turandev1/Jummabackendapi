@@ -194,15 +194,15 @@ exports.registerToken = async (req, res) => {
         .json({ success: false, message: "Token boş olamaz" });
     }
 
-    // Token format kontrolü: Expo token veya "muhtemel FCM" kabul et
+    // Token format kontrolü: Expo token veya FCM token kabul et
     const isExpoToken = /^ExponentPushToken\[[^\]]+\]$/.test(fcmToken);
-    // Muhtemel FCM: boşluk içermeyen, yeterince uzun (20+) bir string kabul et
-    const isLikelyFcm =
-      fcmToken.length >= 20 &&
-      fcmToken.length <= 4096 &&
-      /^\S+$/.test(fcmToken);
+    const isExpoPushToken = /^ExpoPushToken\[[^\]]+\]$/.test(fcmToken);
+    // FCM token: Firebase FCM format veya genel push token format
+    const isFcmToken = fcmToken.startsWith('ExponentPushToken[') || 
+                      fcmToken.startsWith('ExpoPushToken[') ||
+                      (fcmToken.length >= 20 && fcmToken.length <= 4096 && /^\S+$/.test(fcmToken));
 
-    if (!isExpoToken && !isLikelyFcm) {
+    if (!isExpoToken && !isExpoPushToken && !isFcmToken) {
       console.log("Rejected token format:", fcmToken);
       return res
         .status(400)

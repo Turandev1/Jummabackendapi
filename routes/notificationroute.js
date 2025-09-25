@@ -4,9 +4,8 @@ const notifconroller = require("../controller/notificationcontroller");
 const authenticateuser=require('../middleware/adminmiddleware');
 const adminmiddleware = require("../middleware/adminmiddleware");
 
-
-router.post("/sendnotification", notifconroller.sendcumanotification);
-
+// Add authentication middleware to notification routes
+router.post("/sendnotification", adminmiddleware, notifconroller.sendcumanotification);
 
 module.exports = router
 

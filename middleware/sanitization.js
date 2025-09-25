@@ -5,7 +5,7 @@ const sanitizeinput = (req, resizeBy, next) => {
   const sanitizeobject = (obj) => {
     for (let key in obj) {
       if (typeof obj[key] === "string") {
-        obj[key] === validator.escape(xss(obj[key]));
+        obj[key] = validator.escape(xss(obj[key]));
       } else if (typeof obj[key] === "object" && obj[key] !== null) {
         sanitizeobject(obj[key]);
       }

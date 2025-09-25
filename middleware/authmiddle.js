@@ -9,7 +9,6 @@ const authMiddleware = (req, res, next) => {
   }
 
   const token = authHeader.split(" ")[1];
-  console.log("🔑 [AuthMiddleware] Token received:", token.substring(0, 20) + "...");
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
