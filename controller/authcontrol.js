@@ -21,166 +21,73 @@ const generateTokens = (userId) => {
 };
 
 exports.signup = async (req, res) => {
-  const { fullname, email, password, confirmpassword, phone } = req.body;
+  const { fullname, email, phone, password, confirmpassword } = req.body;
+
+  if (!fullname || !email || !password || !confirmpassword)
+    return res.status(400).json({
+      success: false,
+      message: "Bütün məcburi sahələr doldurulmalıdır",
+    });
+
+  if (password !== confirmpassword)
+    return res
+      .status(400)
+      .json({ success: false, message: "Parollar uyğun deyil" });
+
+  if (await User.findOne({ email }))
+    return res
+      .status(400)
+      .json({ success: false, message: "Bu istifadəçi mövcuddur" });
+
+  if (phone && (await User.findOne({ phone })))
+    return res.status(400).json({
+      success: false,
+      message: "Bu telefon nömrəsi artıq qeydiyyatdadır",
+    });
+
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/.test(password))
+    return res.status(400).json({ success: false, message: "Şifrə zəifdir" });
 
   try {
-    logger.info("📩 Yeni signup isteği alındı", { email, phone });
-
-    // 1. Zorunlu alan kontrolü
-    if (!fullname || !email || !password || !confirmpassword) {
-      logger.warn("⚠️ Eksik alan gönderildi", { body: req.body });
-      return res.status(400).json({
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Bütün məcburi sahələr doldurulmalıdır",
-      });
-    }
-
-    // 2. Şifre eşleşme kontrolü
-    if (password !== confirmpassword) {
-      return res.status(400).json({
-        success: false,
-        error: "PASSWORD_MISMATCH",
-        message: "Parollar uyğun deyil",
-      });
-    }
-
-    // 3. Email kontrolü
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      if (!existingUser.isverified) {
-        return res.status(400).json({
-          success: false,
-          error: "EMAIL_NOT_VERIFIED",
-          message:
-            "İstifadəçi mövcuddur amma hesab təsdiqlənməyib. Hesabı təsdiqləyin",
-        });
-      }
-      return res.status(400).json({
-        success: false,
-        error: "EMAIL_EXISTS",
-        message: "Bu istifadəçi mövcuddur. Giriş edin",
-      });
-    }
-
-    // 4. Telefon kontrolü
-    if (phone) {
-      const existingByPhone = await User.findOne({ phone });
-      if (existingByPhone) {
-        return res.status(400).json({
-          success: false,
-          error: "PHONE_EXISTS",
-          message:
-            "Bu telefon nömrəsi artıq qeydiyyatdadır. Başqa nömrə daxil edin",
-        });
-      }
-    }
-
-    // 5. Şifre validasyonu
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
-    if (!passwordRegex.test(password)) {
-      return res.status(400).json({
-        success: false,
-        error: "PASSWORD_WEAK",
-        message:
-          "Şifrə ən azı 6 simvol olmalı, böyük hərf, kiçik hərf və rəqəm daxil edilməlidir",
-      });
-    }
-
-    // 6. Yeni kullanıcı oluştur
     const hashedPassword = await bcrypt.hash(password, 10);
     const verificationCode = crypto.randomInt(100000, 999999).toString();
 
-    const newUser = new User({
+    const newUser = await User.create({
       fullname,
       email,
-      password: hashedPassword,
       phone,
+      password: hashedPassword,
       isverified: false,
       verificationcode: verificationCode,
     });
 
-    await newUser.save();
-    logger.info("✅ Yeni istifadəçi yaradıldı", { email });
-    console.log("Yeni istifadəçi ugurla yaradıldı")
-    // 7. Doğrulama maili gönder
-    try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false, // true for 465, false for other ports
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        tls: {
-          rejectUnauthorized: false
-        }
-      });
+    // Mail gönderimi
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
 
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: "Email doğrulama kodu",
-        text: `Email doğrulama kodunuz: ${verificationCode}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Email Doğrulama</h2>
-            <p>Hesabınızı doğrulamak için aşağıdaki kodu kullanın:</p>
-            <div style="background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; color: #333; border-radius: 5px;">
-              ${verificationCode}
-            </div>
-            <p style="color: #666; font-size: 14px;">Bu kod 15 dakika geçerlidir.</p>
-          </div>
-        `
-      });
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Email doğrulama kodu",
+      text: `Kodunuz: ${verificationCode}`,
+    });
 
-      logger.info("📨 Doğrulama kodu gönderildi", { email });
-      console.log('Kod ugurla gonderildi')
-    } catch (mailError) {
-      console.log(mailError.message)
-      logger.error("❌ Doğrulama maili gönderilemedi", {
-        email,
-        error: mailError.message,
-        stack: mailError.stack
-      });
-      
-      // Email gönderimi başarısız olsa bile kullanıcı oluşturuldu, bu yüzden success: true dön
-      // Frontend'de bu durumu handle edeceğiz
-      return res.status(201).json({
-        success: true,
-        message: "Qeydiyyat uğurla tamamlandı. Doğrulama maili gönderilə bilmədi, lakin hesabınız yaradıldı",
-        data: {
-          email: newUser.email,
-          phone: newUser.phone,
-          fullname: newUser.fullname,
-        },
-        mailWarning: true
-      });
-    }
-
-    // 8. Başarılı response
     return res.status(201).json({
       success: true,
-      message:
-        "Qeydiyyat uğurla tamamlandı. Zəhmət olmasa e-poçt kodunuzu daxil edin",
+      message: "Qeydiyyat uğurla tamamlandı. Email kodunu daxil edin",
       data: {
         email: newUser.email,
-        phone: newUser.phone,
         fullname: newUser.fullname,
+        phone: newUser.phone,
       },
     });
-  } catch (error) {
-    logger.error("❌ Signup sırasında server hatası", {
-      email,
-      error: error.message,
-    });
-    return res.status(500).json({
-      success: false,
-      error: "SERVER_ERROR",
-      message: "Server xətası baş verdi",
-    });
+  } catch (err) {
+    console.log("Signup server hatası:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server xətası baş verdi" });
   }
 };
 
