@@ -102,7 +102,7 @@ exports.signup = async (req, res) => {
 
     await newUser.save();
     logger.info("✅ Yeni istifadəçi yaradıldı", { email });
-
+    console.log("Yeni istifadəçi ugurla yaradıldı")
     // 7. Doğrulama maili gönder
     try {
       const transporter = nodemailer.createTransport({
@@ -137,7 +137,9 @@ exports.signup = async (req, res) => {
       });
 
       logger.info("📨 Doğrulama kodu gönderildi", { email });
+      console.log('Kod ugurla gonderildi')
     } catch (mailError) {
+      console.log(mailError.message)
       logger.error("❌ Doğrulama maili gönderilemedi", {
         email,
         error: mailError.message,
