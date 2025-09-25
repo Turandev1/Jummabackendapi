@@ -3,110 +3,157 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-const Admin = require("../schema/Admin");
 const logger = require("../utils/logger");
-const Notification = require("../schema/notification");
-// Helper function to generate tokens
+
+// Helper: token üretimi
 const generateTokens = (userId) => {
-  const accessToken = jwt.sign(
-    { userId },
-    process.env.JWT_SECRET,
-    { expiresIn: "25m" } // Access token expires in 25 minutes
-  );
+  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: "25m",
+  });
 
   const refreshToken = jwt.sign(
     { userId, type: "refresh" },
-    process.env.JWT_REFRESH_SECRET, // Use separate secret if available
-    { expiresIn: "15d" } // Refresh token expires in 7 days
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: "15d" }
   );
 
   return { accessToken, refreshToken };
 };
 
 exports.signup = async (req, res) => {
+  const { fullname, email, password, confirmpassword, phone } = req.body;
+
   try {
-    const { fullname, email, password, confirmpassword, phone } = req.body;
+    logger.info("📩 Yeni signup isteği alındı", { email, phone });
 
+    // 1. Zorunlu alan kontrolü
     if (!fullname || !email || !password || !confirmpassword) {
-      return res
-        .status(400)
-        .json({ hata: "Bütün məcburi sahələr doldurulmalıdır" });
-    }
-
-    if (password !== confirmpassword) {
-      return res.status(400).json({ hata: "Parollar uyğun deyil" });
-    }
-
-    const existinguser = await User.findOne({ email });
-
-    if (existinguser) {
-      if (!existinguser.isverified) {
-        return res.status(400).json({
-          hata: "İstifadəçi mövcuddur amma hesab təsdiqlənməyib. Hesabı təsdiqləyin",
-        });
-      }
-      return res
-        .status(400)
-        .json({ hata: "Bu istifadəçi mövcuddur. Giriş edin" });
-    }
-
-    if (phone) {
-      const existinguserbyphone = await User.findOne({ phone });
-      if (existinguserbyphone) {
-        return res.status(400).json({
-          hata: "Bu telefon nömrəsi artıq qeydiyyatdadır. Başqa nömrə daxil edin",
-        });
-      }
-    }
-
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
-
-    if (!passwordRegex.test(password)) {
+      logger.warn("⚠️ Eksik alan gönderildi", { body: req.body });
       return res.status(400).json({
-        hata: "Şifrə ən azı 6 simvol olmalı, böyük hərf, kiçik hərf və rəqəm daxil edilməlidir",
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Bütün məcburi sahələr doldurulmalıdır",
       });
     }
 
-    const hashedpassword = await bcrypt.hash(password, 10);
-    const verificationcode = crypto.randomInt(100000, 999999).toString();
-    const newuser = new User({
+    // 2. Şifre eşleşme kontrolü
+    if (password !== confirmpassword) {
+      return res.status(400).json({
+        success: false,
+        error: "PASSWORD_MISMATCH",
+        message: "Parollar uyğun deyil",
+      });
+    }
+
+    // 3. Email kontrolü
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      if (!existingUser.isverified) {
+        return res.status(400).json({
+          success: false,
+          error: "EMAIL_NOT_VERIFIED",
+          message:
+            "İstifadəçi mövcuddur amma hesab təsdiqlənməyib. Hesabı təsdiqləyin",
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        error: "EMAIL_EXISTS",
+        message: "Bu istifadəçi mövcuddur. Giriş edin",
+      });
+    }
+
+    // 4. Telefon kontrolü
+    if (phone) {
+      const existingByPhone = await User.findOne({ phone });
+      if (existingByPhone) {
+        return res.status(400).json({
+          success: false,
+          error: "PHONE_EXISTS",
+          message:
+            "Bu telefon nömrəsi artıq qeydiyyatdadır. Başqa nömrə daxil edin",
+        });
+      }
+    }
+
+    // 5. Şifre validasyonu
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        success: false,
+        error: "PASSWORD_WEAK",
+        message:
+          "Şifrə ən azı 6 simvol olmalı, böyük hərf, kiçik hərf və rəqəm daxil edilməlidir",
+      });
+    }
+
+    // 6. Yeni kullanıcı oluştur
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
+
+    const newUser = new User({
       fullname,
       email,
-      password: hashedpassword,
+      password: hashedPassword,
       phone,
       isverified: false,
-      verificationcode,
+      verificationcode: verificationCode,
     });
 
-    await newuser.save();
-    logger.info("Yeni istifadeci qeydi ugurludur", { email });
+    await newUser.save();
+    logger.info("✅ Yeni istifadəçi yaradıldı", { email });
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+    // 7. Doğrulama maili gönder
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "Email doğrulama kodu",
+        text: `Email doğrulama kodunuz: ${verificationCode}`,
+      });
+
+      logger.info("📨 Doğrulama kodu gönderildi", { email });
+    } catch (mailError) {
+      logger.error("❌ Doğrulama maili gönderilemedi", {
+        email,
+        error: mailError.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: "MAIL_ERROR",
+        message: "Doğrulama maili gönderilə bilmədi",
+      });
+    }
+
+    // 8. Başarılı response
+    return res.status(201).json({
+      success: true,
+      message:
+        "Qeydiyyat uğurla tamamlandı. Zəhmət olmasa e-poçt kodunuzu daxil edin",
+      data: {
+        email: newUser.email,
+        phone: newUser.phone,
+        fullname: newUser.fullname,
       },
     });
-
-    const mailoptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Email doğrulama kodu",
-      text: `Email doğrulama kodunuz ${verificationcode}`,
-    };
-
-    await transporter.sendMail(mailoptions);
-    logger.info("Dogrulama kodu gonderildi", { email });
-
-    return res.status(201).json({
-      mesaj:
-        "Qeydiyyat uğurla tamamlandı,Zəhmət olmasa e-poçt kodunuzu daxil edin",
-    });
   } catch (error) {
-    console.error(error);
-    logger.error("Signup sirasinda xeta", { email, error: error.message });
-    return res.status(500).json({ error: "Server xetasi" });
+    logger.error("❌ Signup sırasında server hatası", {
+      email,
+      error: error.message,
+    });
+    return res.status(500).json({
+      success: false,
+      error: "SERVER_ERROR",
+      message: "Server xətası baş verdi",
+    });
   }
 };
 
@@ -244,7 +291,6 @@ exports.registerToken = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
