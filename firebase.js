@@ -32,7 +32,7 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
 
   const chunkSize = 500; // FCM max 500 token/batch
   const batches = [];
-
+    
   // 🔹 Tokenları 500'lü batchlere ayır
   for (let i = 0; i < tokens.length; i += chunkSize) {
     const chunk = tokens.slice(i, i + chunkSize);
@@ -64,8 +64,6 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       return response;
     });
 
-    console.log("firebase initialized", admin.app().options);
-    console.log("✅ FCM SenderId:", process.env.FIREBASE_SENDER_ID);
     const allResponses = await Promise.all(sendPromises);
     console.log(
       "✅ FCM bildirimleri gönderildi:",

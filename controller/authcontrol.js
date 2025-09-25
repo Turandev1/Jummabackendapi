@@ -384,7 +384,7 @@ exports.logout = async (req, res) => {
     // Clear refresh token from database
     await User.findByIdAndUpdate(userId, {
       refreshToken: null,
-      // fcmToken: null,
+      fcmToken: null,
       lastLogout: new Date(),
     });
 

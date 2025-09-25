@@ -28,7 +28,7 @@ exports.sendcumanotification = async (req, res) => {
 
     await sendFCMNotification(tokens, title, body, {
       screen: "mainpage",
-      senderName: sender.name ,
+      senderName: sender.name,
       customKey: "announcement",
       type: "announcement",
     });
