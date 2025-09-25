@@ -107,10 +107,16 @@ exports.signup = async (req, res) => {
     try {
       const transporter = nodemailer.createTransport({
         service: "gmail",
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false, // true for 465, false for other ports
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
         },
+        tls: {
+          rejectUnauthorized: false
+        }
       });
 
       await transporter.sendMail({
@@ -118,6 +124,16 @@ exports.signup = async (req, res) => {
         to: email,
         subject: "Email doğrulama kodu",
         text: `Email doğrulama kodunuz: ${verificationCode}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Email Doğrulama</h2>
+            <p>Hesabınızı doğrulamak için aşağıdaki kodu kullanın:</p>
+            <div style="background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; color: #333; border-radius: 5px;">
+              ${verificationCode}
+            </div>
+            <p style="color: #666; font-size: 14px;">Bu kod 15 dakika geçerlidir.</p>
+          </div>
+        `
       });
 
       logger.info("📨 Doğrulama kodu gönderildi", { email });
@@ -125,11 +141,20 @@ exports.signup = async (req, res) => {
       logger.error("❌ Doğrulama maili gönderilemedi", {
         email,
         error: mailError.message,
+        stack: mailError.stack
       });
-      return res.status(500).json({
-        success: false,
-        error: "MAIL_ERROR",
-        message: "Doğrulama maili gönderilə bilmədi",
+      
+      // Email gönderimi başarısız olsa bile kullanıcı oluşturuldu, bu yüzden success: true dön
+      // Frontend'de bu durumu handle edeceğiz
+      return res.status(201).json({
+        success: true,
+        message: "Qeydiyyat uğurla tamamlandı. Doğrulama maili gönderilə bilmədi, lakin hesabınız yaradıldı",
+        data: {
+          email: newUser.email,
+          phone: newUser.phone,
+          fullname: newUser.fullname,
+        },
+        mailWarning: true
       });
     }
 
