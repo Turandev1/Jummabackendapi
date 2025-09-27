@@ -59,7 +59,7 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
   };
 
   try {
-    const response = await admin.messaging().sendMulticast(message);
+    const response = await admin.messaging().sendEachForMulticast(message);
 
     const invalidTokens = [];
     response.responses.forEach((resp, idx) => {
