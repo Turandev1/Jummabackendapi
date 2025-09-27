@@ -14,34 +14,26 @@ exports.sendcumanotification = async (req, res) => {
     const sender = await Imam.findById(senderId);
     if (!sender) return res.status(404).json({ error: "Imam bulunamadı" });
 
-    // backend/controller/notificationcontroller.js - Fix query
     const users = await User.find({
       "cumemescidi.id": mescidId,
-      fcmToken: { $exists: true, $ne: [] }, // Check for non-empty array
+      fcmToken: { $exists: true, $ne: [] },
     }).select("_id fcmToken cumemescidi");
 
-    // Fix token extraction
-    const tokens = users.flatMap((u) => u.fcmToken).filter((token) => token); // Flatten array
-
-    if (!users.length)
+    const tokens = users.flatMap((u) => u.fcmToken).filter(Boolean);
+    if (!tokens.length) {
       return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+    }
 
-    await sendFCMNotification(
-      tokens,
-      title,
-      body,
-      {
-        screen: "mainpage",
-        senderName: sender.name,
-        customKey: "announcement",
-        type: "announcement",
-      },
-      {
-        title,
-        body,
-      }
-    );
+    // 🔹 Bildirim gönder
+    await sendFCMNotification(tokens, title, body, {
+      screen: "MainPage",
+      mescidId: String(mescidId),
+      senderId: String(senderId),
+      senderName: sender.name,
+      type: "cumaNotification",
+    });
 
+    // 🔹 DB’ye kaydet
     const notification = new Notification({
       title,
       body,
@@ -55,7 +47,7 @@ exports.sendcumanotification = async (req, res) => {
       data: {
         screen: "MainPage",
         params: { mescidId, senderName: sender.name },
-        customKey: "announcement",
+        customKey: "cumaNotification",
       },
     });
 
