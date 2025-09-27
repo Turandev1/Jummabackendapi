@@ -39,11 +39,6 @@ exports.signup = async (req, res) => {
       .status(400)
       .json({ success: false, message: "Bu istifadəçi mövcuddur" });
 
-  if (phone && (await User.findOne({ phone })))
-    return res.status(400).json({
-      success: false,
-      message: "Bu telefon nömrəsi artıq qeydiyyatdadır",
-    });
 
   if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/.test(password))
     return res.status(400).json({ success: false, message: "Şifrə zəifdir" });
@@ -198,9 +193,12 @@ exports.registerToken = async (req, res) => {
     const isExpoToken = /^ExponentPushToken\[[^\]]+\]$/.test(fcmToken);
     const isExpoPushToken = /^ExpoPushToken\[[^\]]+\]$/.test(fcmToken);
     // FCM token: Firebase FCM format veya genel push token format
-    const isFcmToken = fcmToken.startsWith('ExponentPushToken[') || 
-                      fcmToken.startsWith('ExpoPushToken[') ||
-                      (fcmToken.length >= 20 && fcmToken.length <= 4096 && /^\S+$/.test(fcmToken));
+    const isFcmToken =
+      fcmToken.startsWith("ExponentPushToken[") ||
+      fcmToken.startsWith("ExpoPushToken[") ||
+      (fcmToken.length >= 20 &&
+        fcmToken.length <= 4096 &&
+        /^\S+$/.test(fcmToken));
 
     if (!isExpoToken && !isExpoPushToken && !isFcmToken) {
       console.log("Rejected token format:", fcmToken);

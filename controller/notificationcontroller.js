@@ -26,12 +26,21 @@ exports.sendcumanotification = async (req, res) => {
     if (!users.length)
       return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
-    await sendFCMNotification(tokens, title, body, {
-      screen: "mainpage",
-      senderName: sender.name,
-      customKey: "announcement",
-      type: "announcement",
-    });
+    await sendFCMNotification(
+      tokens,
+      title,
+      body,
+      {
+        screen: "mainpage",
+        senderName: sender.name,
+        customKey: "announcement",
+        type: "announcement",
+      },
+      {
+        title,
+        body,
+      }
+    );
 
     const notification = new Notification({
       title,

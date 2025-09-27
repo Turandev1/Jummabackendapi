@@ -27,7 +27,7 @@ admin.initializeApp({
 });
 
 // 🔹 FCM bildirim fonksiyonu
-const sendFCMNotification = async (tokens, title, body, data = {}) => {
+const sendFCMNotification = async (tokens, title, body, data = {},notification={}) => {
   if (!tokens || !tokens.length) {
     console.warn("⚠️ No tokens provided for FCM notification");
     return;
