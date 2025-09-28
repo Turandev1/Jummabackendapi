@@ -101,25 +101,25 @@ exports.signup = async (req, res) => {
       verificationcode: verificationCode,
     });
 
-    // Mail gönder (hata olursa yakala ve kullanıcıya uygun cevap dön)
-    try {
-      await sendVerificationEmail(email, verificationCode);
-    } catch (mailErr) {
-      // mail gönderilemedi, kullanıcı yaratıldı ama e-posta başarısız
-      logger &&
-        logger.warn &&
-        logger.warn("Doğrulama maili gönderilemedi", mailErr);
-      return res.status(201).json({
-        success: true,
-        message:
-          "Qeydiyyat tamamlandı, lakin doğrulama emaili göndərilə bilmədi. Yenidən göndərmə tələb edin.",
-        data: {
-          email: newUser.email,
-          fullname: newUser.fullname,
-          phone: newUser.phone,
-        },
-      });
-    }
+    // // Mail gönder (hata olursa yakala ve kullanıcıya uygun cevap dön)
+    // try {
+    //   await sendVerificationEmail(email, verificationCode);
+    // } catch (mailErr) {
+    //   // mail gönderilemedi, kullanıcı yaratıldı ama e-posta başarısız
+    //   logger &&
+    //     logger.warn &&
+    //     logger.warn("Doğrulama maili gönderilemedi", mailErr);
+    //   return res.status(201).json({
+    //     success: true,
+    //     message:
+    //       "Qeydiyyat tamamlandı, lakin doğrulama emaili göndərilə bilmədi. Yenidən göndərmə tələb edin.",
+    //     data: {
+    //       email: newUser.email,
+    //       fullname: newUser.fullname,
+    //       phone: newUser.phone,
+    //     },
+    //   });
+    // }
 
     return res.status(201).json({
       success: true,
