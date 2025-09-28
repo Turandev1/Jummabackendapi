@@ -4,25 +4,53 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const logger = require("../utils/logger");
-const mailgun = require("mailgun-js");
-
+const Mailgun = require("mailgun.js");
+const formdata = require("form-data");
 // Mailgun setup
-const mg = mailgun({
-  apiKey: process.env.MAILGUN_APIKEY,
-  domain: process.env.MAILGUN_DOMAIN, // sandbox veya doğrulanmış domain
+const mailgun = new Mailgun(formdata);
+const mg = mailgun.client({
+  username: "api",
+  key: process.env.MAILGUN_APIKEY,
+  domain: process.env.MAILGUN_DOMAIN,
 });
 
-// Mail gönderim fonksiyonu
-const sendVerificationEmail = async (to, code) => {
-  const data = {
-    from: `YourApp <no-reply@${process.env.MAILGUN_DOMAIN}>`,
-    to,
-    subject: "Email doğrulama kodu",
-    text: `Kodunuz: ${code}`,
-  };
+// Doğrulama e-postası gönderme fonksiyonu
+async function sendVerificationEmail(toEmail, code) {
+  const from =
+    process.env.MAILGUN_FROM ||
+    `No-Reply <no-reply@${process.env.MAILGUN_DOMAIN}>`;
+  const subject = "Hesabınızı doğrulayın";
+  const text = `Merhaba,\n\nHesabınızı doğrulamak için kodunuz: ${code}\n\nKod 10 dakika içinde geçerlidir.\n\nSaygılarımızla.`;
+  const html = `
+    <p>Merhaba,</p>
+    <p>Hesabınızı doğrulamak için kodunuz:</p>
+    <h2>${code}</h2>
+    <p>Kod 10 dakika içinde geçerlidir.</p>
+    <p>Saygılarımızla.</p>
+  `;
 
-  return mg.messages().send(data);
-};
+  try {
+    const response = await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+      from,
+      to: [toEmail],
+      subject,
+      text,
+      html,
+    });
+    logger &&
+      logger.info &&
+      logger.info("Verification email sent", {
+        to: toEmail,
+        mgResponse: response,
+      });
+    return response;
+  } catch (err) {
+    logger && logger.error && logger.error("Mailgun send error", err);
+    throw err; // çağıranın (signup/resend) yakalaması için hatayı fırlat
+  }
+}
+
+sendEmail();
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
@@ -74,8 +102,25 @@ exports.signup = async (req, res) => {
       verificationcode: verificationCode,
     });
 
-    // Mail gönder
-    await sendVerificationEmail(email, verificationCode);
+    // Mail gönder (hata olursa yakala ve kullanıcıya uygun cevap dön)
+    try {
+      await sendVerificationEmail(email, verificationCode);
+    } catch (mailErr) {
+      // mail gönderilemedi, kullanıcı yaratıldı ama e-posta başarısız
+      logger &&
+        logger.warn &&
+        logger.warn("Doğrulama maili gönderilemedi", mailErr);
+      return res.status(201).json({
+        success: true,
+        message:
+          "Qeydiyyat tamamlandı, lakin doğrulama emaili göndərilə bilmədi. Yenidən göndərmə tələb edin.",
+        data: {
+          email: newUser.email,
+          fullname: newUser.fullname,
+          phone: newUser.phone,
+        },
+      });
+    }
 
     return res.status(201).json({
       success: true,
