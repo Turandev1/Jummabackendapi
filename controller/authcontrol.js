@@ -50,7 +50,6 @@ async function sendVerificationEmail(toEmail, code) {
   }
 }
 
-sendEmail();
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
