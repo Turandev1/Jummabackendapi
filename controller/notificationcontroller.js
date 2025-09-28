@@ -71,7 +71,7 @@ exports.sendcumanotification = async (req, res) => {
         mescidId,
         sentTo: users.map((u) => u._id),
         sentCount: sendResult.successCount || users.length,
-        status: sendResult && sendResult.failureCount > 0 ? "partial" : "sent",
+        status: sendResult && sendResult.failureCount > 0 ? "pending" : "read",
         data: {
           screen: "MainPage",
           params: { mescidId, senderName: sender.name },
