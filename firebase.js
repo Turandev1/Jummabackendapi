@@ -38,25 +38,33 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
     return;
   }
 
-  const message = {
-    notification: { title, body }, // 🔹 banner için
-    data, // 🔹 foreground listener için
-    tokens: validTokens,
-    android: {
-      notification: {
-        channelId: "default",
-        sound: "default",
-        priority: "high",
-      },
-    },
-    apns: {
-      payload: {
-        aps: {
-          sound: "default",
-        },
-      },
-    },
-  };
+ const message = {
+   tokens: validTokens,
+   notification: {
+     title,
+     body,
+   },
+   data: {
+     title, // foreground listener bunları buradan okuyacak
+     body,
+     ...data, // custom data
+   },
+   android: {
+     notification: {
+       channelId: "default",
+       sound: "default",
+       priority: "high",
+     },
+   },
+   apns: {
+     payload: {
+       aps: {
+         sound: "default",
+       },
+     },
+   },
+ };
+
 
   try {
     const response = await admin.messaging().sendEachForMulticast(message);
