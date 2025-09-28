@@ -4,6 +4,25 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const logger = require("../utils/logger");
+const mailgun = require("mailgun-js");
+
+// Mailgun setup
+const mg = mailgun({
+  apiKey: process.env.MAILGUN_APIKEY,
+  domain: process.env.MAILGUN_DOMAIN, // sandbox veya doğrulanmış domain
+});
+
+// Mail gönderim fonksiyonu
+const sendVerificationEmail = async (to, code) => {
+  const data = {
+    from: `YourApp <no-reply@${process.env.MAILGUN_DOMAIN}>`,
+    to,
+    subject: "Email doğrulama kodu",
+    text: `Kodunuz: ${code}`,
+  };
+
+  return mg.messages().send(data);
+};
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
@@ -39,7 +58,6 @@ exports.signup = async (req, res) => {
       .status(400)
       .json({ success: false, message: "Bu istifadəçi mövcuddur" });
 
-
   if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/.test(password))
     return res.status(400).json({ success: false, message: "Şifrə zəifdir" });
 
@@ -56,18 +74,8 @@ exports.signup = async (req, res) => {
       verificationcode: verificationCode,
     });
 
-    // Mail gönderimi
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Email doğrulama kodu",
-      text: `Kodunuz: ${verificationCode}`,
-    });
+    // Mail gönder
+    await sendVerificationEmail(email, verificationCode);
 
     return res.status(201).json({
       success: true,
@@ -125,30 +133,15 @@ exports.resendVerificationCode = async (req, res) => {
   if (user.isverified) {
     return res.status(400).json({ hata: "İstifadəçi artıq təsdiqlənib" });
   }
-
-  // Yeni kod oluştur
-  const verificationcode = crypto.randomInt(100000, 999999).toString();
-  user.verificationcode = verificationcode;
-  await user.save();
-
-  // Email gönder
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Email doğrulama kodu",
-    text: `Email doğrulama kodunuz: ${verificationcode}`,
-  };
-
   try {
-    await transporter.sendMail(mailOptions);
+    // Yeni kod oluştur
+    const verificationcode = crypto.randomInt(100000, 999999).toString();
+    user.verificationcode = verificationcode;
+    await user.save();
+
+    // Email gönder
+    await sendVerificationEmail(email, verificationcode);
+
     return res.status(200).json({ mesaj: "Kod yenidən göndərildi" });
   } catch (error) {
     console.log("Mail gönderme hatası:", error);
@@ -214,7 +207,6 @@ exports.registerToken = async (req, res) => {
     await User.findByIdAndUpdate(userId, {
       $addToSet: { fcmToken: fcmToken },
     });
-
 
     return res.json({ success: true, message: "Token kaydedildi" });
   } catch (err) {
