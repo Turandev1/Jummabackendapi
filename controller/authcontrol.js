@@ -211,11 +211,10 @@ exports.registerToken = async (req, res) => {
 
     // Başka kullanıcıların elindeki aynı token'ı temizle
     await User.updateMany({}, { $pull: { fcmToken: fcmToken } });
-
-    // Kullanıcının token array'ine ekle (duplicate engellemek için $addToSet)
     await User.findByIdAndUpdate(userId, {
       $addToSet: { fcmToken: fcmToken },
     });
+
 
     return res.json({ success: true, message: "Token kaydedildi" });
   } catch (err) {
