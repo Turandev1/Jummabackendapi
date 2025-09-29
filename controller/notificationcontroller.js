@@ -73,7 +73,7 @@ exports.sendcumanotification = async (req, res) => {
         sentCount: sendResult.successCount || users.length,
         status:"pending",
         data: {
-          screen: "MainPage",
+          screen: "mainpage",
           params: { mescidId, senderName: sender.name },
           customKey: "cumaNotification",
         },
@@ -106,3 +106,5 @@ exports.sendcumanotification = async (req, res) => {
     res.status(500).json({ error: "Sunucu hatası" });
   }
 };
+
+
