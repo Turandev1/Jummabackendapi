@@ -56,21 +56,12 @@ exports.signup = async (req, res) => {
       verificationcode: verificationCode,
     });
 
-    // // 📧 Doğrulama maili gönder
-    // // 📧 Doğrulama maili gönder
-    // await sendMail(
-    //   email,
-    //   "Email Doğrulama Kodu",
-    //   `Salam ${fullname}, doğrulama kodunuz: ${verificationCode}`,
-    //   `<h2>Salam ${fullname}</h2>
-    //  <p>Doğrulama kodunuz: <b>${verificationCode}</b></p>`
-    // );
-
+    
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       service:'gmail',
-      port: 587,
-      secure: false, // true for 465, false for other ports
+      port: 465,
+      secure: true, // true for 465, false for other ports
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,

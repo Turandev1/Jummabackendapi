@@ -26,7 +26,6 @@ const userschema = new mongoose.Schema(
     phone: {
       type: String,
       required: true,
-      unique: false,
       match: [/^\+?[0-9]{10,15}$/, "Geçerli bir telefon numarası giriniz"],
     },
     isverified: { type: Boolean, default: false },
