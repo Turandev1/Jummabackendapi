@@ -4,8 +4,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const logger = require("../utils/logger");
-const sendMail=require('../utils/mailer')
-
+const sendMail = require("../utils/mailer");
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
@@ -58,12 +57,12 @@ exports.signup = async (req, res) => {
     });
 
     // 📧 Doğrulama maili gönder
+    // 📧 Doğrulama maili gönder
     await sendMail(
       email,
       "Email Doğrulama Kodu",
       `<h2>Salam ${fullname}</h2>
-       <p>Doğrulama kodunuz: <b>${verificationCode}</b></p>
-       <p>Bu kodu istifadə edərək hesabınızı təsdiqləyin.</p>`
+     <p>Doğrulama kodunuz: <b>${verificationCode}</b></p>`
     );
 
     return res.status(201).json({
