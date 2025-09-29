@@ -3,7 +3,7 @@ const User = require("../schema/Users");
 const Imam = require("../schema/Admin");
 const Notification = require("../schema/notification");
 const { sendFCMNotification } = require("../firebase");
-const { io } = require("../server"); // Socket.IO instance
+const { getIO } = require("../utils/socket"); // Socket.IO instance
 
 const LOG = (...args) =>
   console.log(new Date().toISOString(), "[NOTIF-CTRL]", ...args);
@@ -78,7 +78,7 @@ exports.sendcumanotification = async (req, res) => {
         },
       };
       LOG(`Emitting WebSocket notification to room: mescid_${mescidId}`);
-      io.to(`mescid_${mescidId}`).emit("newNotification", wsPayload);
+      getIO.to(`mescid_${mescidId}`).emit("newNotification", wsPayload);
 
       // DB’ye kaydet
       const notificationDoc = new Notification({

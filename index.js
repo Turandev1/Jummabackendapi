@@ -17,26 +17,8 @@ const errorhandler = require("./middleware/errorhandler");
 const notificationroutes = require("./routes/notificationroute");
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-});
+const { init: initIO } = require("./utils/socket");
 
-io.on("connection", (socket) => {
-  console.log("Yeni socket bağlandı:", socket.id);
-
-  socket.on("joinRoom", (roomName) => {
-    console.log(`Socket ${socket.id} joined room ${roomName}`);
-    socket.join(roomName);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Socket disconnected:", socket.id);
-  });
-});
 
 const allowedOrigins = [
   "http://localhost:3000", // Web dev
@@ -61,6 +43,10 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
+
+
+const io = initIO(server, corsOptions);
+
 
 app.use(cors(corsOptions));
 
