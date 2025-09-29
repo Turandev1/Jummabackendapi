@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const logger = require("../utils/logger");
+const sendMail=require('../utils/mailer')
+
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
