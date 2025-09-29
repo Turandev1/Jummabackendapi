@@ -59,7 +59,8 @@ exports.signup = async (req, res) => {
     await sendMail(
       email,
       "Dogrulama kodu",
-      `Doğrulama kodunuz: ${verificationCode}``<h2>Salam ${fullname}</h2>
+      `Doğrulama kodunuz: ${verificationCode}`,
+      `<h2>Salam ${fullname}</h2>
        <p>Yeni doğrulama kodunuz: <b>${verificationCode}</b></p>`
     );
 
