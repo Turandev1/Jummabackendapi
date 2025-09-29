@@ -4,6 +4,8 @@ const mongoose = require("mongoose");
 require("dotenv").config(); // Load environment variables
 const cors = require("cors");
 const path = require("path");
+const http = require("http");
+const { Server } = require("socket.io");
 require("./ping");
 const { validateEnvironment } = require("./config/environment");
 const { generalLimiter } = require("./middleware/ratelimiter");
@@ -13,6 +15,28 @@ const approutes = require("./routes/mainroutes");
 const adminroutes = require("./routes/adminroute");
 const errorhandler = require("./middleware/errorhandler");
 const notificationroutes = require("./routes/notificationroute");
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("Yeni socket bağlandı:", socket.id);
+
+  socket.on("joinRoom", (roomName) => {
+    console.log(`Socket ${socket.id} joined room ${roomName}`);
+    socket.join(roomName);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Socket disconnected:", socket.id);
+  });
+});
 
 const allowedOrigins = [
   "http://localhost:3000", // Web dev

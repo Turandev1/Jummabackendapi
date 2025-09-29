@@ -3,6 +3,7 @@ const User = require("../schema/Users");
 const Imam = require("../schema/Admin");
 const Notification = require("../schema/notification");
 const { sendFCMNotification } = require("../firebase");
+const { io } = require("../server"); // Socket.IO instance
 
 const LOG = (...args) =>
   console.log(new Date().toISOString(), "[NOTIF-CTRL]", ...args);
@@ -26,6 +27,7 @@ exports.sendcumanotification = async (req, res) => {
       return res.status(400).json({ error: "Eksik veri" });
     }
 
+    // Gönderen imamı bul
     const sender = await Imam.findById(senderId).lean();
     if (!sender) {
       LOG("Sender not found for senderId:", senderId);
@@ -33,6 +35,7 @@ exports.sendcumanotification = async (req, res) => {
     }
     LOG("Found sender", { senderId, name: sender.name, role: sender.role });
 
+    // MescidId'ye bağlı kullanıcıları bul
     const users = await User.find({
       "cumemescidi.id": mescidId,
       fcmToken: { $exists: true, $ne: [] },
@@ -51,6 +54,7 @@ exports.sendcumanotification = async (req, res) => {
     }
 
     try {
+      // FCM gönderimi
       LOG("Calling sendFCMNotification with tokens...");
       const sendResult = await sendFCMNotification(tokens, title, body, {
         screen: "mainpage",
@@ -60,6 +64,21 @@ exports.sendcumanotification = async (req, res) => {
         type: "cumaNotification",
       });
       LOG("sendFCMNotification result:", sendResult);
+
+      // WebSocket: mescidId bazlı room'a broadcast
+      const wsPayload = {
+        title,
+        body,
+        data: {
+          screen: "mainpage",
+          senderName: sender.name,
+          mescidId,
+          senderId,
+          type: "cumaNotification",
+        },
+      };
+      LOG(`Emitting WebSocket notification to room: mescid_${mescidId}`);
+      io.to(`mescid_${mescidId}`).emit("newNotification", wsPayload);
 
       // DB’ye kaydet
       const notificationDoc = new Notification({
@@ -71,7 +90,7 @@ exports.sendcumanotification = async (req, res) => {
         mescidId,
         sentTo: users.map((u) => u._id),
         sentCount: sendResult.successCount || users.length,
-        status:"pending",
+        status: "pending",
         data: {
           screen: "mainpage",
           params: { mescidId, senderName: sender.name },
@@ -95,7 +114,10 @@ exports.sendcumanotification = async (req, res) => {
         notificationId: saved._id,
       });
     } catch (sendErr) {
-      ERROR("Error while sending FCM or saving notification:", sendErr);
+      ERROR(
+        "Error while sending FCM or WebSocket or saving notification:",
+        sendErr
+      );
       return res.status(500).json({ error: "Bildirim gönderilirken hata" });
     }
   } catch (err) {
@@ -106,5 +128,3 @@ exports.sendcumanotification = async (req, res) => {
     res.status(500).json({ error: "Sunucu hatası" });
   }
 };
-
-

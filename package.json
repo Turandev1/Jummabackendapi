@@ -33,6 +33,7 @@
     "nodemailer": "^7.0.5",
     "path": "^0.12.7",
     "router": "^2.2.0",
+    "socket.io": "^4.8.1",
     "supertest": "^7.1.4",
     "validator": "^13.15.15",
     "winston": "^3.17.0",
