@@ -4,11 +4,12 @@ const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_APIKEY);
 
 // Mail gönderme fonksiyonu
-const sendMail = async (to, subject, html) => {
+const sendMail = async (to, subject,text, html) => {
   const msg = {
     to,
     from: process.env.SENDGRID_FROM, // doğrulanmış mail adresin
     subject,
+    text,
     html,
   };
 
