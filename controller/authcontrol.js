@@ -56,26 +56,12 @@ exports.signup = async (req, res) => {
       verificationcode: verificationCode,
     });
 
-    
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      service:'gmail',
-      port: 465,
-      secure: true, // true for 465, false for other ports
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Doğrulama kodu ✔",
-      text: `Doğrulama kodunuz: ${verificationCode}`,
-      html: `<b>${verificationCode}</b>`,
-    });
-    console.log("Message sent:", info.messageId);
+    await sendMail(
+      email,
+      "Dogrulama kodu",
+      `Doğrulama kodunuz: ${verificationCode}``<h2>Salam ${fullname}</h2>
+       <p>Yeni doğrulama kodunuz: <b>${verificationCode}</b></p>`
+    );
 
     return res.status(201).json({
       success: true,
@@ -143,6 +129,7 @@ exports.resendVerificationCode = async (req, res) => {
     await sendMail(
       email,
       "Yeni Doğrulama Kodu",
+      `Doğrulama kodunuz: ${verificationCode}`,
       `<h2>Salam ${user.fullname}</h2>
        <p>Yeni doğrulama kodunuz: <b>${verificationcode}</b></p>`
     );
