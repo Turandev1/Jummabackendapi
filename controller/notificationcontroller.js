@@ -78,7 +78,7 @@ exports.sendcumanotification = async (req, res) => {
         },
       };
       LOG(`Emitting WebSocket notification to room: mescid_${mescidId}`);
-      getIO.to(`mescid_${mescidId}`).emit("newNotification", wsPayload);
+      getIO().to(`mescid_${mescidId}`).emit("newNotification", wsPayload);
 
       // DB’ye kaydet
       const notificationDoc = new Notification({
