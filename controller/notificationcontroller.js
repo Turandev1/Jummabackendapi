@@ -3,37 +3,20 @@ const User = require("../schema/Users");
 const Imam = require("../schema/Admin");
 const Notification = require("../schema/notification");
 const { sendFCMNotification } = require("../firebase");
-const { getIO } = require("../utils/socket"); // Socket.IO instance
-
-const LOG = (...args) =>
-  console.log(new Date().toISOString(), "[NOTIF-CTRL]", ...args);
-const ERROR = (...args) =>
-  console.error(new Date().toISOString(), "[NOTIF-CTRL][ERROR]", ...args);
 
 exports.sendcumanotification = async (req, res) => {
   try {
-    LOG("Incoming sendcumanotification request", {
-      body: req.body,
-      ip:
-        req.ip ||
-        req.headers["x-forwarded-for"] ||
-        req.connection.remoteAddress,
-    });
-
     const { senderId, title, body, mescidId } = req.body;
 
     if (!senderId || !title || !body || !mescidId) {
-      LOG("Bad request — missing fields", { senderId, title, body, mescidId });
       return res.status(400).json({ error: "Eksik veri" });
     }
 
     // Gönderen imamı bul
     const sender = await Imam.findById(senderId).lean();
     if (!sender) {
-      LOG("Sender not found for senderId:", senderId);
       return res.status(404).json({ error: "Imam bulunamadı" });
     }
-    LOG("Found sender", { senderId, name: sender.name, role: sender.role });
 
     // MescidId'ye bağlı kullanıcıları bul
     const users = await User.find({
@@ -43,19 +26,14 @@ exports.sendcumanotification = async (req, res) => {
       .select("_id fcmToken cumemescidi")
       .lean();
 
-    LOG("DB query for users returned", { usersCount: users.length });
-
     const tokens = users.flatMap((u) => u.fcmToken || []).filter(Boolean);
-    LOG("Flattened tokens count:", tokens.length);
 
     if (!tokens.length) {
-      LOG("No tokens to send to — returning 404");
       return res.status(404).json({ error: "Kullanıcı bulunamadı" });
     }
 
     try {
       // FCM gönderimi
-      LOG("Calling sendFCMNotification with tokens...");
       const sendResult = await sendFCMNotification(tokens, title, body, {
         screen: "mainpage",
         mescidId: String(mescidId),
@@ -63,23 +41,8 @@ exports.sendcumanotification = async (req, res) => {
         senderName: sender.name,
         type: "cumaNotification",
       });
-      LOG("sendFCMNotification result:", sendResult);
 
-      // WebSocket: mescidId bazlı room'a broadcast
-      const wsPayload = {
-        title,
-        body,
-        data: {
-          screen: "mainpage",
-          senderName: sender.name,
-          mescidId,
-          senderId,
-          type: "cumaNotification",
-        },
-      };
-      LOG(`Emitting WebSocket notification to room: mescid_${mescidId}`);
-      getIO().to(`mescid_${mescidId}`).emit("newNotification", wsPayload);
-
+      
       // DB’ye kaydet
       const notificationDoc = new Notification({
         title,
@@ -104,7 +67,6 @@ exports.sendcumanotification = async (req, res) => {
       });
 
       const saved = await notificationDoc.save();
-      LOG("Notification saved to DB with id:", saved._id);
 
       res.json({
         success: true,
@@ -114,17 +76,9 @@ exports.sendcumanotification = async (req, res) => {
         notificationId: saved._id,
       });
     } catch (sendErr) {
-      ERROR(
-        "Error while sending FCM or WebSocket or saving notification:",
-        sendErr
-      );
       return res.status(500).json({ error: "Bildirim gönderilirken hata" });
     }
   } catch (err) {
-    ERROR(
-      "Unhandled server error in sendcumanotification:",
-      err && err.stack ? err.stack : err
-    );
     res.status(500).json({ error: "Sunucu hatası" });
   }
 };

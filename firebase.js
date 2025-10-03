@@ -2,11 +2,6 @@
 const admin = require("firebase-admin");
 require("dotenv").config();
 
-const LOG = (...args) =>
-  console.log(new Date().toISOString(), "[FCM]", ...args);
-const ERROR = (...args) =>
-  console.error(new Date().toISOString(), "[FCM][ERROR]", ...args);
-
 const validateFirebaseConfig = () => {
   const required = [
     "FIREBASE_PROJECT_ID",
@@ -16,18 +11,8 @@ const validateFirebaseConfig = () => {
   ];
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    ERROR("Missing Firebase env vars:", missing);
     process.exit(1);
   }
-  LOG("Firebase env vars present (masked):", {
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-    FIREBASE_CLIENT_EMAIL:
-      process.env.FIREBASE_CLIENT_EMAIL &&
-      (process.env.FIREBASE_CLIENT_EMAIL.length > 30
-        ? "..." + process.env.FIREBASE_CLIENT_EMAIL.slice(-30)
-        : process.env.FIREBASE_CLIENT_EMAIL),
-    FIREBASE_SENDER_ID: process.env.FIREBASE_SENDER_ID,
-  });
 };
 validateFirebaseConfig();
 
@@ -44,9 +29,7 @@ try {
       privateKey,
     }),
   });
-  LOG("Firebase admin initialized successfully");
 } catch (initErr) {
-  ERROR("Failed to initialize Firebase admin:", initErr);
   throw initErr;
 }
 
@@ -58,15 +41,8 @@ try {
  */
 const sendFCMNotification = async (tokens, title, body, data = {}) => {
   try {
-    LOG("Preparing to send FCM notification", {
-      tokenCount: tokens ? tokens.length : 0,
-      title,
-      body,
-      dataKeys: Object.keys(data),
-    });
-
+    
     if (!tokens || !tokens.length) {
-      LOG("No tokens provided for FCM notification — aborting");
       return { successCount: 0, failureCount: 0, note: "no-tokens" };
     }
 
@@ -74,9 +50,7 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       (token) => token && typeof token === "string" && token.trim().length > 0
     );
 
-    LOG("Valid token count:", validTokens.length);
     if (!validTokens.length) {
-      LOG("No valid tokens after filtering — aborting");
       return { successCount: 0, failureCount: 0, note: "no-valid-tokens" };
     }
 
@@ -85,7 +59,6 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       const s = t.trim();
       return s.length > 10 ? "..." + s.slice(-10) : s;
     });
-    LOG("Token samples (masked):", tokenSamples);
 
     const message = {
       tokens: validTokens,
@@ -114,13 +87,6 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       },
     };
 
-    LOG("Constructed message object for FCM (fields shown):", {
-      hasNotification: !!message.notification,
-      dataKeys: Object.keys(message.data),
-      android: !!message.android,
-      apns: !!message.apns,
-    });
-
     // Try preferred multicast method; fallback if not available (robust to SDK differences)
     let response;
     let responsesArray = [];
@@ -128,13 +94,9 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
     const messaging = admin.messaging();
 
     if (typeof messaging.sendMulticast === "function") {
-      LOG("Using admin.messaging().sendMulticast()");
       response = await messaging.sendMulticast(message);
       responsesArray = response.responses || [];
     } else if (typeof messaging.sendAll === "function") {
-      LOG(
-        "admin.messaging().sendMulticast not available, falling back to sendAll()"
-      );
       const messages = validTokens.map((t) => ({
         token: t,
         notification: { title, body },
@@ -145,9 +107,6 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       response = await messaging.sendAll(messages);
       responsesArray = response.responses || [];
     } else {
-      LOG(
-        "Neither sendMulticast nor sendAll available on admin.messaging(), falling back to per-token send()"
-      );
       const perResponses = await Promise.all(
         validTokens.map(async (t) => {
           try {
@@ -189,12 +148,7 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
         const messageText =
           (err && (err.message || (err.toString && err.toString()))) ||
           String(err);
-        LOG(
-          `Token ${idx} failed — masked: ${
-            validTokens[idx] ? "..." + validTokens[idx].slice(-10) : "n/a"
-          }`,
-          { code, message: messageText }
-        );
+
         if (
           code === "messaging/invalid-registration-token" ||
           code === "messaging/registration-token-not-registered" ||
@@ -206,14 +160,9 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
     });
 
     if (invalidTokens.length > 0) {
-      LOG(
-        `Detected ${invalidTokens.length} invalid tokens (sample):`,
-        invalidTokens.slice(0, 6)
-      );
       // Burada DB’den silme işlemi yapılabilir
     }
 
-    LOG("FCM send result:", { successCount, failureCount });
     return {
       successCount,
       failureCount,
@@ -221,10 +170,6 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       rawResponse: response,
     };
   } catch (error) {
-    ERROR(
-      "FCM send error (unexpected):",
-      error && error.stack ? error.stack : error
-    );
     throw error;
   }
 };

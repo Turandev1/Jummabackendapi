@@ -3,9 +3,6 @@ const app = express();
 const mongoose = require("mongoose");
 require("dotenv").config(); // Load environment variables
 const cors = require("cors");
-const path = require("path");
-const http = require("http");
-const { Server } = require("socket.io");
 require("./ping");
 const { validateEnvironment } = require("./config/environment");
 const { generalLimiter } = require("./middleware/ratelimiter");
@@ -15,9 +12,7 @@ const approutes = require("./routes/mainroutes");
 const adminroutes = require("./routes/adminroute");
 const errorhandler = require("./middleware/errorhandler");
 const notificationroutes = require("./routes/notificationroute");
-const server = http.createServer(app);
 
-const { init: initIO } = require("./utils/socket");
 
 
 const allowedOrigins = [
@@ -45,7 +40,6 @@ const corsOptions = {
 };
 
 
-const io = initIO(server, corsOptions);
 
 
 app.use(cors(corsOptions));

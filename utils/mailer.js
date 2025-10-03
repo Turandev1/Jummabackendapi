@@ -18,8 +18,13 @@ const sendMail = async (to, subject,text, html) => {
     console.log("✅ Mail gönderildi:", to);
     return true;
   } catch (error) {
-    console.error("❌ Mail gönderme hatası:", error.response?.body || error);
-    return false;
+
+    if (error.response && error.response.body) {
+      console.error("x sendgrid api hatasi",error.response.body)
+    } else {
+      console.error("x hata:",error.message)
+    }
+    return false
   }
 };
 
