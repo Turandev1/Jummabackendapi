@@ -11,6 +11,7 @@ const validateFirebaseConfig = () => {
   ];
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
+    console.error("[Firebase Config Error] Missing env variables:", missing);
     process.exit(1);
   }
 };
@@ -29,7 +30,10 @@ try {
       privateKey,
     }),
   });
+
+  console.log("[Firebase] Initialized successfully.");
 } catch (initErr) {
+  console.error("[Firebase Init Error]", initErr);
   throw initErr;
 }
 
@@ -41,8 +45,12 @@ try {
  */
 const sendFCMNotification = async (tokens, title, body, data = {}) => {
   try {
-    
+    console.log("[FCM] Preparing to send notification...");
+    console.log(`[FCM] Incoming tokens count: ${tokens?.length || 0}`);
+    console.log(`[FCM] Notification Title: "${title}", Body: "${body}"`);
+
     if (!tokens || !tokens.length) {
+      console.warn("[FCM] No tokens provided.");
       return { successCount: 0, failureCount: 0, note: "no-tokens" };
     }
 
@@ -51,14 +59,16 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
     );
 
     if (!validTokens.length) {
+      console.warn("[FCM] No valid tokens found.");
       return { successCount: 0, failureCount: 0, note: "no-valid-tokens" };
     }
 
-    // Mask tokens in logs (show last 6 chars) for privacy
+    // Mask tokens in logs
     const tokenSamples = validTokens.slice(0, 6).map((t) => {
       const s = t.trim();
       return s.length > 10 ? "..." + s.slice(-10) : s;
     });
+    console.log("[FCM] Sending to token samples:", tokenSamples);
 
     const message = {
       tokens: validTokens,
@@ -87,16 +97,17 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       },
     };
 
-    // Try preferred multicast method; fallback if not available (robust to SDK differences)
+    const messaging = admin.messaging();
+
     let response;
     let responsesArray = [];
 
-    const messaging = admin.messaging();
-
     if (typeof messaging.sendMulticast === "function") {
+      console.log("[FCM] Using sendMulticast...");
       response = await messaging.sendMulticast(message);
       responsesArray = response.responses || [];
     } else if (typeof messaging.sendAll === "function") {
+      console.log("[FCM] sendMulticast not available, using sendAll...");
       const messages = validTokens.map((t) => ({
         token: t,
         notification: { title, body },
@@ -107,6 +118,9 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       response = await messaging.sendAll(messages);
       responsesArray = response.responses || [];
     } else {
+      console.log(
+        "[FCM] sendMulticast/sendAll not available, sending individually..."
+      );
       const perResponses = await Promise.all(
         validTokens.map(async (t) => {
           try {
@@ -119,6 +133,7 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
             });
             return { success: true, messageId: r };
           } catch (err) {
+            console.error("[FCM] Error sending to token:", t, err);
             return { success: false, error: err };
           }
         })
@@ -131,13 +146,11 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       };
     }
 
-    // Process responses to find invalid tokens or errors
     const invalidTokens = [];
     let successCount = 0;
     let failureCount = 0;
 
     responsesArray.forEach((resp, idx) => {
-      // For unified handling handle both shapes (sendMulticast/sendAll) and fallback per-send
       const isSuccess = !!resp.success;
       if (isSuccess) {
         successCount++;
@@ -148,6 +161,11 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
         const messageText =
           (err && (err.message || (err.toString && err.toString()))) ||
           String(err);
+
+        console.warn(`[FCM] Error for token [${idx}]:`, {
+          code,
+          message: messageText,
+        });
 
         if (
           code === "messaging/invalid-registration-token" ||
@@ -160,8 +178,14 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
     });
 
     if (invalidTokens.length > 0) {
-      // Burada DB’den silme işlemi yapılabilir
+      console.log("[FCM] Invalid tokens detected:", invalidTokens);
+      // DB'den silme işlemi yapılabilir
     }
+
+    console.log("[FCM] Notification sending completed.", {
+      successCount,
+      failureCount,
+    });
 
     return {
       successCount,
@@ -170,6 +194,7 @@ const sendFCMNotification = async (tokens, title, body, data = {}) => {
       rawResponse: response,
     };
   } catch (error) {
+    console.error("[FCM] Unexpected error:", error);
     throw error;
   }
 };
