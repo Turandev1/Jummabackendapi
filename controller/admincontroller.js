@@ -196,7 +196,7 @@ exports.getusers = async (req, res) => {
 
 exports.getmescids = async (req, res) => {
   try {
-    const mescids = await Admin.find({ role: "imam" }).select('mescid');
+    const mescids = await Admin.find({ role: "imam" });
 
 
     return res.status(200).json({ mesaj: "Good request",mescids });

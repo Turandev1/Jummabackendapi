@@ -19,17 +19,9 @@ const messageschema = new mongoose.Schema(
 
 const userschema = new mongoose.Schema(
   {
-    fullname: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    cins: { type: String, enum: ["male", "female"], default: null },
-    phone: {
-      type: String,
-      required: true,
-      match: [/^\+?[0-9]{10,15}$/, "Geçerli bir telefon numarası giriniz"],
-    },
-    isverified: { type: Boolean, default: false },
-    verificationcode: String,
+    cins: { type: String, enum: ["male", "female"], default: null }, 
     cumemescidi: { type: Object },
     forgotpassverifycode: String,
     refreshToken: String,
@@ -53,7 +45,6 @@ const userschema = new mongoose.Schema(
 
 // indeksler
 userschema.index({ fcmToken: 1 });
-userschema.index({ isverified: 1 });
 userschema.index({ refreshToken: 1 });
 
 module.exports = mongoose.model("User", userschema);

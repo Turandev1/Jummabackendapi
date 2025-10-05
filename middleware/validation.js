@@ -13,9 +13,6 @@ const validateSignup = [
     .isLength({ min: 6 })
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/)
     .withMessage('Password must be at least 6 characters with uppercase, lowercase and number'),
-  body('phone')
-    .matches(/^\+?[0-9]{10,15}$/)
-    .withMessage('Please provide a valid phone number'),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

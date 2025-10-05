@@ -22,9 +22,9 @@ const generateTokens = (userId) => {
 };
 
 exports.signup = async (req, res) => {
-  const { fullname, email, phone, password, confirmpassword } = req.body;
+  const { email, password, confirmpassword } = req.body;
 
-  if (!fullname || !email || !password || !confirmpassword)
+  if (!email || !password || !confirmpassword)
     return res.status(400).json({
       success: false,
       message: "Bütün məcburi sahələr doldurulmalıdır",
@@ -45,32 +45,18 @@ exports.signup = async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationCode = crypto.randomInt(100000, 999999).toString();
 
     const newUser = await User.create({
-      fullname,
       email,
-      phone,
       password: hashedPassword,
-      isverified: false,
-      verificationcode: verificationCode,
     });
 
-    await sendMail(
-      email,
-      "Dogrulama kodu",
-      `Doğrulama kodunuz: ${verificationCode}`,
-      `<h2>Salam ${fullname}</h2>
-       <p>Yeni doğrulama kodunuz: <b>${verificationCode}</b></p>`
-    );
-
+    console.log("Istifadəçi hesabi yaradildi");
     return res.status(201).json({
       success: true,
-      message: "Qeydiyyat uğurla tamamlandı. Email kodunu daxil edin",
+      message: "Qeydiyyat uğurla tamamlandı. Giriş edin",
       data: {
         email: newUser.email,
-        fullname: newUser.fullname,
-        phone: newUser.phone,
       },
     });
   } catch (err) {
@@ -78,67 +64,6 @@ exports.signup = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Server xətası baş verdi" });
-  }
-};
-
-exports.verifyemail = async (req, res) => {
-  const { email, code } = req.body;
-
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(400).json({ hata: "İstifadəçi tapılmadı" });
-  }
-
-  if (user.isverified) {
-    return res.status(400).json({ hata: "İstifadəçi doğrulanıb,giriş edin" });
-  }
-
-  if (user.verificationcode === code) {
-    user.isverified = true;
-    user.verificationcode = null;
-    await user.save();
-
-    return res.status(200).json({ message: "Doğrulama uğurla tamamlandı" });
-  } else {
-    return res.status(400).json({ hata: "Kod yanlışdır" });
-  }
-};
-
-// Kullanıcıya tekrar doğrulama kodu gönderme
-exports.resendVerificationCode = async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ hata: "Email verilməlidir" });
-  }
-
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(400).json({ hata: "İstifadəçi tapılmadı" });
-  }
-
-  if (user.isverified) {
-    return res.status(400).json({ hata: "İstifadəçi artıq təsdiqlənib" });
-  }
-  try {
-    // Yeni kod oluştur
-    const verificationcode = crypto.randomInt(100000, 999999).toString();
-    user.verificationcode = verificationcode;
-    await user.save();
-
-    // 📧 Mail gönder
-    await sendMail(
-      email,
-      "Yeni Doğrulama Kodu",
-      `Doğrulama kodunuz: ${verificationCode}`,
-      `<h2>Salam ${user.fullname}</h2>
-       <p>Yeni doğrulama kodunuz: <b>${verificationcode}</b></p>`
-    );
-
-    return res.status(200).json({ mesaj: "Kod yenidən göndərildi" });
-  } catch (error) {
-    console.log("Mail gönderme hatası:", error);
-    return res.status(500).json({ hata: "Kod göndərilə bilmədi" });
   }
 };
 
@@ -215,6 +140,7 @@ exports.login = async (req, res) => {
       .status(400)
       .json({ hata: "Bütün məcburi sahələr doldurulmalıdır" });
   }
+
   try {
     const existinguser = await User.findOne({ email });
 
@@ -236,10 +162,6 @@ exports.login = async (req, res) => {
       return res.status(400).json({ hata: "Yanlış parol" });
     }
 
-    if (!existinguser.isverified) {
-      return res.status(404).json({ hata: "İstifadəçi doğrulanmadı" });
-    }
-
     // Generate both access and refresh tokens
     const { accessToken, refreshToken } = generateTokens(existinguser._id);
 
@@ -255,10 +177,8 @@ exports.login = async (req, res) => {
       refreshToken,
       user: {
         id: existinguser._id,
-        fullname: existinguser.fullname,
         email: existinguser.email,
         privilige: existinguser.privilige,
-        phone: existinguser.phone,
         cins: existinguser.cins,
       },
     });
@@ -377,7 +297,7 @@ exports.setgender = async (req, res) => {
     user.cumemescidi = cumemescidi;
     await user.save();
 
-    return res.status(200).json({ mesaj: "Cins uğurla qeyd edildi" });
+    return res.status(200).json({ mesaj: "Cins uğurla qeyd edildi",success:true });
   } catch (err) {
     console.error("Cins qeyd xətası:", err);
     return res.status(500).json({ hata: "Server xətası baş verdi" });
@@ -496,7 +416,7 @@ exports.deleteaccount = async (req, res) => {
 };
 
 exports.updateuserinfo = async (req, res) => {
-  const { fullname, email, phone, cins } = req.body;
+  const {  email, cins } = req.body;
 
   if (!req.userId) {
     return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
@@ -517,9 +437,7 @@ exports.updateuserinfo = async (req, res) => {
       user.email = email;
     }
 
-    if (fullname !== undefined) user.fullname = fullname;
     if (email !== undefined) user.email = email;
-    if (phone !== undefined) user.phone = phone;
     if (cins !== undefined) user.cins = cins;
 
     await user.save();
@@ -532,9 +450,9 @@ exports.updateuserinfo = async (req, res) => {
 
 exports.sendmessage = async (req, res) => {
   try {
-    const { fullname, title, message, userId } = req.body;
+    const { title, message, userId } = req.body;
 
-    if (!fullname && !title && !message) {
+    if (!title && !message) {
       return res.status(400).json({ hata: "Bilgilər əskikdir" });
     }
 
@@ -543,7 +461,7 @@ exports.sendmessage = async (req, res) => {
       return res.status(404).json({ hata: "Istifadəçi tapılmadı" });
     }
 
-    user.mesajlar.push({ fullname, title, message });
+    user.mesajlar.push({ title, message });
     await user.save();
 
     res.status(201).json({ success: true, message: "Mesaj uğurla göndərildi" });

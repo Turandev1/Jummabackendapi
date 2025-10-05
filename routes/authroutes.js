@@ -8,13 +8,11 @@ const ratelimit = require('../middleware/ratelimiter')
 
 router.post("/signup",ratelimit.authLimiter, authcontroller.signup);
 router.post("/login", validatelogin,ratelimit.authLimiter, authcontroller.login);
-router.post("/verify",ratelimit.authLimiter, authcontroller.verifyemail);
 router.post("/register-token",authenticateUser, authcontroller.registerToken);
 const { tokenRefreshLimiter } = require('../middleware/ratelimiter')
 router.post("/refresh", tokenRefreshLimiter, authcontroller.refreshToken); // New refresh token route
 router.post("/setgender", authcontroller.setgender);
 router.get("/getping", authcontroller.getping);
-router.get("/resendcode",ratelimit.authLimiter, authcontroller.resendVerificationCode);
 router.get("/getme", authenticateUser, authcontroller.getme);
 //account process routes
 router.put("/changepassword", authenticateUser, authcontroller.changepassword);
