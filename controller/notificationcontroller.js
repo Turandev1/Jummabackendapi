@@ -92,6 +92,7 @@ exports.sendcumanotification = async (req, res) => {
           invalidTokensCount:
             (sendResult.invalidTokens && sendResult.invalidTokens.length) || 0,
         },
+        startTime: new Date(Date.now() + time * 60 * 1000),
       });
 
       const saved = await notificationDoc.save();
@@ -114,6 +115,27 @@ exports.sendcumanotification = async (req, res) => {
     }
   } catch (err) {
     console.error("[CumaNotification] Genel sunucu hatası:", err);
+    res.status(500).json({ error: "Sunucu hatası" });
+  }
+};
+
+
+
+
+
+
+
+
+exports.getLatestNotification = async (req, res) => {
+  const { mescidId } = req.params;
+  try {
+    const latest = await Notification.findOne({ mescidId })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (!latest) return res.json({ message: "No notification yet" });
+    res.json(latest);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Sunucu hatası" });
   }
 };

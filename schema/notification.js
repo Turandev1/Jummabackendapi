@@ -42,6 +42,7 @@ const notificationSchema = new mongoose.Schema(
 
     // Bildirim sesi ve öncelik (Opsiyonel)
     priority: { type: String, enum: ["normal", "high"], default: "normal" },
+    starttime: { type: Date },
     sound: { type: String, default: "default" },
     // Bildirim tipi: message, announcement, alert
     type: {

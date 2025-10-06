@@ -116,6 +116,144 @@ exports.imamlogin = async (req, res) => {
   });
 };
 
+
+exports.verifyImamToken = async (req, res) => {
+  const authHeader =
+    req.headers["authorization"] || req.headers["Authorization"];
+  const token =
+    authHeader && authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+  if (!token) {
+    return res.status(401).json({ hata: "Token yoxdur" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const admin = await Admin.findById(decoded.userId || decoded.id);
+    if (!admin) {
+      return res.status(401).json({ hata: "İstifadəçi tapılmadı" });
+    }
+
+    return res.status(200).json({ mesaj: "Token keçərlidir", user: admin });
+  } catch (err) {
+    console.error("Token doğrulama xətası:", err);
+    return res.status(403).json({ hata: "Token etibarsız və ya vaxtı keçib" });
+  }
+};
+
+exports.changeImamPassword = async (req, res) => {
+  try {
+    const authHeader =
+      req.headers["authorization"] || req.headers["Authorization"];
+    const token =
+      authHeader && authHeader.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : null;
+
+    if (!token) {
+      return res.status(401).json({ hata: "Token yoxdur" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const imam = await Admin.findById(decoded.userId);
+
+    if (!imam) {
+      return res.status(404).json({ hata: "İmam hesabı tapılmadı" });
+    }
+
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ hata: "Bütün sahələri doldurun" });
+    }
+
+    const match = await bcrypt.compare(currentPassword, imam.password);
+    if (!match) {
+      return res.status(400).json({ hata: "Cari şifrə yanlışdır" });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ hata: "Yeni şifrələr uyğun deyil" });
+    }
+
+    const hashedNew = await bcrypt.hash(newPassword, 10);
+    imam.password = hashedNew;
+    await imam.save();
+
+    return res.status(200).json({ mesaj: "Şifrə uğurla dəyişdirildi" });
+  } catch (error) {
+    console.error("Şifrə dəyişmə xətası:", error);
+    return res.status(500).json({ hata: "Server xətası" });
+  }
+};
+
+
+
+
+exports.refreshToken = async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ hata: "Refresh token yoxdur" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    const admin = await Admin.findById(decoded.userId);
+    if (!admin || admin.refreshToken !== token) {
+      return res.status(403).json({ hata: "Refresh token etibarsızdır" });
+    }
+
+    const { accessToken, refreshToken } = generateTokens(admin._id);
+
+    admin.refreshToken = refreshToken;
+    await admin.save();
+
+    return res.status(200).json({ accessToken, refreshToken });
+  } catch (err) {
+    console.error("Refresh token error:", err);
+    return res
+      .status(403)
+      .json({ hata: "Refresh token etibarsız və ya vaxtı keçib" });
+  }
+};
+
+
+exports.logout = async (req, res) => {
+  const authHeader =
+    req.headers["authorization"] || req.headers["Authorization"];
+  const token =
+    authHeader && authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+  if (!token) {
+    return res.status(400).json({ hata: "Token yoxdur" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const admin = await Admin.findById(decoded.userId);
+    if (!admin) {
+      return res.status(404).json({ hata: "İstifadəçi tapılmadı" });
+    }
+
+    // refresh token'ı sıfırla
+    admin.refreshToken = null;
+    await admin.save();
+
+    return res.status(200).json({ mesaj: "Çıxış uğurlu" });
+  } catch (err) {
+    console.error("Logout error:", err);
+    return res
+      .status(403)
+      .json({ hata: "Token etibarsız və ya artıq istifadə olunub" });
+  }
+};
+
+
+
 exports.editimamacc = async (req, res) => {
   try {
     const { id } = req.params;
