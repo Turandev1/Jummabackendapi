@@ -27,7 +27,7 @@ exports.sendcumanotification = async (req, res) => {
 
     const tokens = users.flatMap((u) => u.fcmToken || []).filter(Boolean);
     if (!tokens.length) {
-      return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+      return res.status(404).json({ error: "İstifadəçi tapılmadı" });
     }
 
     // FCM gönderimi
