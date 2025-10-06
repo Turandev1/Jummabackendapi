@@ -1,52 +1,47 @@
 const express = require("express");
 const app = express();
 const mongoose = require("mongoose");
-require("dotenv").config(); // Load environment variables
+require("dotenv").config();
 const cors = require("cors");
 require("./ping");
 const { validateEnvironment } = require("./config/environment");
 const { generalLimiter } = require("./middleware/ratelimiter");
 validateEnvironment();
+
 const authRoutes = require("./routes/authroutes");
 const approutes = require("./routes/mainroutes");
 const adminroutes = require("./routes/adminroute");
-const errorhandler = require("./middleware/errorhandler");
 const notificationroutes = require("./routes/notificationroute");
+const errorhandler = require("./middleware/errorhandler");
 
-
-
+// ✅ CORS yapılandırması
 const allowedOrigins = [
-  "http://localhost:3000", // Web dev
-  "exp://192.168.1.68:8081", // Mobil dev (Expo)
-  "https://jummabackend.com", // Production web
+  "http://localhost:5173", // Local React web
+  "https://yourdomain.vercel.app", // Production web
+  "exp://192.168.1.68:8081", // Local Expo
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Mobil uygulamalardan gelen isteklerde origin olmayabilir
-    if (!origin) {
-      return callback(null, true);
-    }
-
+    if (!origin) return callback(null, true); // Postman veya mobil istekte origin yok
     if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
+      callback(null, true);
     } else {
-      return callback(new Error("Not allowed by CORS"));
+      callback(new Error("Not allowed by CORS"));
     }
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"],
 };
-
-
-
-
 app.use(cors(corsOptions));
 
+
+// ✅ JSON parser
+app.use(express.json());
+
+// ✅ MongoDB bağlantısı
 if (!process.env.MONGO_URI) {
   console.error("Hata: MONGO_URI ortam değişkeni tanımlı değil.");
-  process.exit(1); // Uygulamadan çık
+  process.exit(1);
 }
 
 mongoose
@@ -54,21 +49,23 @@ mongoose
   .then(() => console.log("MongoDB bağlantısı başarılı."))
   .catch((err) => {
     console.error("Veritabanı bağlantı hatası:", err);
-    process.exit(1); // Bağlantı hatasında uygulamadan çık
+    process.exit(1);
   });
 
-app.use(express.json());
-// Rate limiter önce
+// ✅ Rate limiter ve route’lar
 app.use("/api/auth", generalLimiter, authRoutes);
 app.use("/api/app", generalLimiter, approutes);
 app.use("/api/notification", generalLimiter, notificationroutes);
 app.use("/webapi/auth", adminroutes);
 
-// Global error handler en sonda kalmalı
+// ✅ Hata yakalama
 app.use(errorhandler);
-app.set("trust proxy", 1);
-const PORT = process.env.PORT || 3000;
 
+// ✅ Proxy ayarı
+app.set("trust proxy", 1);
+
+// ✅ Server başlat
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
 });

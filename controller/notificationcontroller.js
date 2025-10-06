@@ -6,7 +6,7 @@ const { sendFCMNotification } = require("../firebase");
 
 exports.sendcumanotification = async (req, res) => {
   try {
-    const { senderId, title, body, mescidId } = req.body;
+    const { senderId, title, body, mescidId,time } = req.body;
 
     console.log("[CumaNotification] Request body:", {
       senderId,
