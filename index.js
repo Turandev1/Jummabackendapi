@@ -7,6 +7,23 @@ require("./ping");
 const { validateEnvironment } = require("./config/environment");
 const { generalLimiter } = require("./middleware/ratelimiter");
 validateEnvironment();
+const http=require("http");
+const server = http.createServer(app);
+const { Server } = require("socket.io");
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+global._io = io
+io.on("connection", (socket) => {
+  console.log("a user connected",socket.id);  
+  socket.on("disconnect", () => {
+    console.log("user disconnected",socket.id);
+  });
+});
 
 const authRoutes = require("./routes/authroutes");
 const approutes = require("./routes/mainroutes");
@@ -66,6 +83,6 @@ app.set("trust proxy", 1);
 
 // ✅ Server başlat
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
 });
