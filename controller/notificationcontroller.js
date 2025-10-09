@@ -6,7 +6,11 @@ const { sendFCMNotification } = require("../firebase");
 exports.sendcumanotification = async (req, res) => {
   try {
     const { senderId, title, body, mescidId, time } = req.body;
-
+    console.log('senderId:', senderId)
+    console.log('title:', title)
+    console.log('body:', body)
+    console.log('mescidId:', mescidId)
+    console.log('time:', time)
     if (!senderId || !title || !body || !mescidId) {
       return res.status(400).json({ error: "Eksik veri" });
     }
