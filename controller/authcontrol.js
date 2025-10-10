@@ -5,6 +5,7 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const logger = require("../utils/logger");
 const sendMail = require("../utils/mailer");
+const Admin = require("../schema/Admin");
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
@@ -21,49 +22,84 @@ const generateTokens = (userId) => {
   return { accessToken, refreshToken };
 };
 
-exports.signup = async (req, res) => {
-  const { email, password, confirmpassword } = req.body;
-
-  if (!email || !password || !confirmpassword)
-    return res.status(400).json({
-      success: false,
-      message: "Bütün məcburi sahələr doldurulmalıdır",
-    });
-
-  if (password !== confirmpassword)
-    return res
-      .status(400)
-      .json({ success: false, message: "Parollar uyğun deyil" });
-
-  if (await User.findOne({ email }))
-    return res
-      .status(400)
-      .json({ success: false, message: "Bu istifadəçi mövcuddur" });
-
-  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/.test(password))
-    return res.status(400).json({ success: false, message: "Şifrə zəifdir" });
-
+exports.createaccount = async (req, res) => {
   try {
+    const { cumemescidi, fcmToken } = req.body;
+
+    // Guest user oluştur
+    const guestUser = new User({ cumemescidi, fcmToken });
+    await guestUser.save();
+
+    res.status(201).json({ success: true, userId: guestUser._id });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.signup = async (req, res) => {
+  try {
+    const { email, password, confirmpassword, userId } = req.body;
+
+    // Zorunlu alan kontrolü
+    if (!email || !password || !confirmpassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Bütün sahələr doldurulmalıdır",
+      });
+    }
+
+    // Mevcut guest user'ı bul
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User tapılmadı",
+      });
+    }
+
+    // Email zaten var mı kontrol et (başka kullanıcıda)
+    const existingEmailUser = await User.findOne({ email });
+    if (existingEmailUser && existingEmailUser._id.toString() !== userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Bu email artıq mövcuddur",
+      });
+    }
+
+    // Şifre güvenlik kontrolü (isteğe bağlı, mevcut kurala göre)
+    if (!/^(?=.*[a-z])(?=.*\d).{6,}$/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: "Şifrə zəifdir,ən az 6 simvol və 1 rəqəm daxil edin",
+      });
+    }
+
+    // Şifre hashing
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await User.create({
-      email,
-      password: hashedPassword,
-    });
+    // Guest user'ı update et
+    user.email = email;
+    user.password = hashedPassword;
+    user.isGuest = false;
+    await user.save();
 
-    console.log("Istifadəçi hesabi yaradildi");
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
-      message: "Qeydiyyat uğurla tamamlandı. Giriş edin",
-      data: {
-        email: newUser.email,
+      message: "Hesab uğurla yaradıldı",
+      user: {
+        id: user._id,
+        email: user.email,
+        cumemescidi: user.cumemescidi,
+        fcmToken: user.fcmToken,
       },
     });
   } catch (err) {
-    console.log("Signup server hatası:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server xətası baş verdi" });
+    console.error("❌ Signup server hatası:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server xətası baş verdi",
+      error: err.message,
+    });
   }
 };
 
@@ -135,11 +171,6 @@ exports.registerToken = async (req, res) => {
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res
-      .status(400)
-      .json({ hata: "Bütün məcburi sahələr doldurulmalıdır" });
-  }
 
   try {
     const existinguser = await User.findOne({ email });
@@ -166,20 +197,19 @@ exports.login = async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(existinguser._id);
 
     // Save refresh token to database
-    const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
-    existinguser.refreshToken = hashedrefreshtoken;
+    // const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
+    // existinguser.refreshToken = hashedrefreshtoken;
     await existinguser.save();
     logger.info("Login ugurludur", { email });
 
     return res.status(200).json({
       mesaj: "Uğurlu giriş",
-      accessToken,
-      refreshToken,
+      success: true,
+      // accessToken,
+      // refreshToken,
       user: {
         id: existinguser._id,
         email: existinguser.email,
-        privilige: existinguser.privilige,
-        cins: existinguser.cins,
       },
     });
   } catch (err) {
@@ -297,7 +327,9 @@ exports.setgender = async (req, res) => {
     user.cumemescidi = cumemescidi;
     await user.save();
 
-    return res.status(200).json({ mesaj: "Cins uğurla qeyd edildi",success:true });
+    return res
+      .status(200)
+      .json({ mesaj: "Cins uğurla qeyd edildi", success: true });
   } catch (err) {
     console.error("Cins qeyd xətası:", err);
     return res.status(500).json({ hata: "Server xətası baş verdi" });
@@ -416,7 +448,7 @@ exports.deleteaccount = async (req, res) => {
 };
 
 exports.updateuserinfo = async (req, res) => {
-  const {  email, cins } = req.body;
+  const { email, cins } = req.body;
 
   if (!req.userId) {
     return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
@@ -579,7 +611,7 @@ exports.getimam = async (req, res) => {
   const { email } = req.body;
   try {
     const imam = await Admin.find({ email }); // sadece adminler
-
+    console.log("imam:", imam);
     res.status(200).json({ success: true, users: imam });
   } catch (err) {
     console.error(err);
@@ -588,7 +620,8 @@ exports.getimam = async (req, res) => {
 };
 
 exports.imamlogin = async (req, res) => {
-  const { email, seccode, password } = req.body;
+  const { email, password } = req.body;
+
   const user = await Admin.findOne({ email });
 
   if (!user) {
@@ -596,14 +629,9 @@ exports.imamlogin = async (req, res) => {
   }
 
   const matchpass = await bcrypt.compare(password, user.password);
-  const matchseccode = await bcrypt.compare(seccode, user.securitycode);
 
   if (!matchpass) {
     return res.status(400).json({ hata: "Şifrə yanlışdır" });
-  }
-
-  if (!matchseccode) {
-    return res.status(400).json({ hata: "Təhlükəsizlik kodu yanlışdır" });
   }
 
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
@@ -619,9 +647,11 @@ exports.imamlogin = async (req, res) => {
       surname: user.surname,
       name: user.name,
       cins: user.cins,
+      mescid:user.mescid
     },
   });
 };
+
 
 // Add to backend/controller/authcontrol.js
 exports.getNotifications = async (req, res) => {
@@ -638,8 +668,7 @@ exports.getNotifications = async (req, res) => {
 };
 
 exports.changemescid = async (req, res) => {
-  const { cumemescidi } = req.body;
-  const userId = req.userId;
+  const { cumemescidi, userId } = req.body;
 
   try {
     const user = await User.findById(userId);

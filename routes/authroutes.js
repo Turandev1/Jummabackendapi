@@ -5,7 +5,7 @@ const authenticateUser = require("../middleware/authmiddle");
 const validatelogin =require('../middleware/validatelogin')
 const ratelimit = require('../middleware/ratelimiter')
 
-
+router.post('/create-account',authcontroller.createaccount)
 router.post("/signup",ratelimit.authLimiter, authcontroller.signup);
 router.post("/login", validatelogin,ratelimit.authLimiter, authcontroller.login);
 router.post("/register-token",authenticateUser, authcontroller.registerToken);
@@ -15,7 +15,7 @@ router.post("/setgender", authcontroller.setgender);
 router.get("/getping", authcontroller.getping);
 router.get("/getme", authenticateUser, authcontroller.getme);
 //account process routes
-router.put("/changepassword", authenticateUser, authcontroller.changepassword);
+router.put("/changepassword", authcontroller.changepassword);
 router.delete("/deleteaccount", authenticateUser, authcontroller.deleteaccount);
 router.put("/updateuserinfo", authenticateUser, authcontroller.updateuserinfo);
 router.post("/logout", authenticateUser, authcontroller.logout); // New logout route
@@ -28,7 +28,7 @@ router.get("/getnotifications", authenticateUser, authcontroller.getNotification
 
 
 //
-router.put('/changemescid',authenticateUser,authcontroller.changemescid)
+router.put('/changemescid',authcontroller.changemescid)
 
 
 // message routes removed due to missing Message model; reintroduce when implemented

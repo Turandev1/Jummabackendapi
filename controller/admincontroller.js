@@ -145,25 +145,14 @@ exports.verifyImamToken = async (req, res) => {
 
 exports.changeImamPassword = async (req, res) => {
   try {
-    const authHeader =
-      req.headers["authorization"] || req.headers["Authorization"];
-    const token =
-      authHeader && authHeader.startsWith("Bearer ")
-        ? authHeader.split(" ")[1]
-        : null;
-
-    if (!token) {
-      return res.status(401).json({ hata: "Token yoxdur" });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const imam = await Admin.findById(decoded.userId);
+    const { currentPassword, newPassword, confirmPassword,email } = req.body;
+   
+    const imam = await Admin.findOne({email});
 
     if (!imam) {
       return res.status(404).json({ hata: "İmam hesabı tapılmadı" });
     }
 
-    const { currentPassword, newPassword, confirmPassword } = req.body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({ hata: "Bütün sahələri doldurun" });
@@ -177,12 +166,17 @@ exports.changeImamPassword = async (req, res) => {
     if (newPassword !== confirmPassword) {
       return res.status(400).json({ hata: "Yeni şifrələr uyğun deyil" });
     }
+    
+    
+    if (newPassword === currentPassword) {
+      return res.status(400).json({ hata: "Köhnə şifrəni istifadə edə bilməzsinizçyeni şifrə təyin edin" });
+    }
 
     const hashedNew = await bcrypt.hash(newPassword, 10);
     imam.password = hashedNew;
     await imam.save();
 
-    return res.status(200).json({ mesaj: "Şifrə uğurla dəyişdirildi" });
+    return res.status(200).json({ mesaj: "Şifrə uğurla dəyişdirildi",success:true });
   } catch (error) {
     console.error("Şifrə dəyişmə xətası:", error);
     return res.status(500).json({ hata: "Server xətası" });
@@ -343,4 +337,6 @@ exports.getmescids = async (req, res) => {
     return res.status(500).json({ hata: "Server error" });
   }
 };
+
+
 

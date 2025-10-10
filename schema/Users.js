@@ -16,12 +16,13 @@ const messageschema = new mongoose.Schema(
   }
 );
 
-
 const userschema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    cins: { type: String, enum: ["male", "female"], default: null }, 
+    name: { type: String, default: null },
+    surname: { type: String, default: null },
+    email: { type: String, unique: true, sparse: true, default: null },
+    password: { type: String, default: null },
+    cins: { type: String, enum: ["male", "female"], default: null },
     cumemescidi: { type: Object },
     forgotpassverifycode: String,
     refreshToken: String,
@@ -34,6 +35,7 @@ const userschema = new mongoose.Schema(
       marketing: { type: Boolean, default: false },
     },
     lastNotificationRead: { type: Date, default: Date.now },
+    isGuest: { type: Boolean, default: true },
     deviceInfo: {
       platform: String,
       version: String,
