@@ -32,9 +32,21 @@ exports.createaccount = async (req, res) => {
 
     res.status(201).json({ success: true, userId: guestUser._id });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    // Konsola detaylı log yaz
+    console.error("Hata createaccount fonksiyonunda:", err);
+    console.error("Hata stack trace:", err.stack);
+    console.error("Request body:", req.body);
+
+    // Geliştirme ortamında daha detaylı dönebilirsiniz
+    res.status(500).json({
+      success: false,
+      message: "Kullanıcı oluşturulurken hata oluştu.",
+      error: err.message,
+      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+    });
   }
 };
+
 
 exports.signup = async (req, res) => {
   try {
