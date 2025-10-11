@@ -20,7 +20,7 @@ const userschema = new mongoose.Schema(
   {
     name: { type: String, default: null },
     surname: { type: String, default: null },
-    email: { type: String, unique: true, sparse: true, default: null },
+    email: { type: String, sparse: true, default: null },
     password: { type: String, default: null },
     cins: { type: String, enum: ["male", "female"], default: null },
     cumemescidi: { type: Object },

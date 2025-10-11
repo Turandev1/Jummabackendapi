@@ -74,7 +74,7 @@ exports.signup = async (req, res) => {
     if (existingEmailUser && existingEmailUser._id.toString() !== userId) {
       return res.status(400).json({
         success: false,
-        message: "Bu email artıq mövcuddur",
+        message: "Bu email artıq mövcuddur,Giriş edə bilərsiniz",
       });
     }
 
