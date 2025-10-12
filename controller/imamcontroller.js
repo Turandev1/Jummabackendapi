@@ -295,7 +295,7 @@ exports.getme = async (req, res) => {
 
 exports.getadmins = async (req, res) => {
   try {
-    const admins = await Admin.find({ role: "admin" }); // sadece adminler
+    const admins = await Imam.find({ role: "admin" }); // sadece adminler
 
     res.status(200).json({ success: true, users: admins });
   } catch (err) {
@@ -306,7 +306,7 @@ exports.getadmins = async (req, res) => {
 
 exports.getimams = async (req, res) => {
   try {
-    const imams = await Admin.find({ role: "imam" }); // sadece adminler
+    const imams = await Imam.find({ role: "imam" }); // sadece adminler
 
     res.status(200).json({ success: true, users: imams });
   } catch (err) {
@@ -328,7 +328,7 @@ exports.getusers = async (req, res) => {
 
 exports.getmescids = async (req, res) => {
   try {
-    const mescids = await Admin.find({ role: "imam" });
+    const mescids = await Imam.find({ role: "imam" });
 
 
     return res.status(200).json({ mesaj: "Good request",mescids });
