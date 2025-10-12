@@ -27,6 +27,7 @@ io.on("connection", (socket) => {
 
 const authRoutes = require("./routes/authroutes");
 const approutes = require("./routes/mainroutes");
+const imamroutes = require("./routes/imamroute");
 const adminroutes = require("./routes/adminroute");
 const notificationroutes = require("./routes/notificationroute");
 const errorhandler = require("./middleware/errorhandler");
@@ -73,7 +74,9 @@ mongoose
 app.use("/api/auth", generalLimiter, authRoutes);
 app.use("/api/app", generalLimiter, approutes);
 app.use("/api/notification", generalLimiter, notificationroutes);
-app.use("/webapi/auth", adminroutes);
+app.use("/webapi/auth", imamroutes);
+app.use("/webapi/admin", adminroutes);
+
 
 // ✅ Hata yakalama
 app.use(errorhandler);

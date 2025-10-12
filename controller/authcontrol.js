@@ -5,7 +5,7 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const logger = require("../utils/logger");
 const sendMail = require("../utils/mailer");
-const Admin = require("../schema/Admin");
+const Imam = require("../schema/İmam");
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
@@ -622,7 +622,7 @@ exports.forgotpasschange = async (req, res) => {
 exports.getimam = async (req, res) => {
   const { email } = req.body;
   try {
-    const imam = await Admin.find({ email }); // sadece adminler
+    const imam = await Imam.find({ email }); // sadece adminler
     console.log("imam:", imam);
     res.status(200).json({ success: true, users: imam });
   } catch (err) {
@@ -634,7 +634,7 @@ exports.getimam = async (req, res) => {
 exports.imamlogin = async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await Admin.findOne({ email });
+  const user = await Imam.findOne({ email });
 
   if (!user) {
     return res.status(400).json({ hata: "İstifadəçi tapılmadı" });
