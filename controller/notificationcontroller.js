@@ -1,5 +1,5 @@
 const User = require("../schema/Users");
-const Imam = require("../schema/Admin");
+const Imam = require("../schema/İmam");
 const Notification = require("../schema/notification");
 const { sendFCMNotification } = require("../firebase");
 

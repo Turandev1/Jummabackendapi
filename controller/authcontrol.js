@@ -683,8 +683,10 @@ exports.changemescid = async (req, res) => {
   const { cumemescidi, userId } = req.body;
 
   try {
+    console.log('userid:',userId)
     const user = await User.findById(userId);
     if (!user) {
+      console.log('istifadəçi tapilmadi')
       return res.status(400).json({ hata: "Istifadəçi tapılmadı" });
     }
 

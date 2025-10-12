@@ -74,7 +74,7 @@ mongoose
 app.use("/api/auth", generalLimiter, authRoutes);
 app.use("/api/app", generalLimiter, approutes);
 app.use("/api/notification", generalLimiter, notificationroutes);
-app.use("/webapi/auth", imamroutes);
+app.use("/webapi/imam", imamroutes);
 app.use("/webapi/admin", adminroutes);
 
 
