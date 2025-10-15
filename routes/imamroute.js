@@ -8,12 +8,12 @@ const adminmiddleware=require('../middleware/adminmiddleware')
 // Public routes
 router.post("/imamsignup",webcontroller.imamsignup);
 router.post("/imamlogin",webcontroller.imamlogin);
-router.get("/verifytoken",webcontroller.verifyImamToken);
+router.get("/verifyimam",adminmiddleware,webcontroller.verifyimam);
 router.post("/refreshtokens",webcontroller.refreshToken);
 
 // Protected routes
-router.post("/changepassword",webcontroller.changeImamPassword);
-router.post("/logout",webcontroller.logout);
+router.post("/changepassword",adminmiddleware,webcontroller.changeImamPassword);
+router.post("/logout", webcontroller.logout);
 router.put("/editimamacc/:id",webcontroller.editimamacc);
 router.get("/getme",webcontroller.getme);
 router.get("/getadmins",webcontroller.getadmins);

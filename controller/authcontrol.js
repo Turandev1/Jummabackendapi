@@ -24,20 +24,69 @@ const generateTokens = (userId) => {
 
 exports.createaccount = async (req, res) => {
   try {
-    const { cumemescidi, fcmToken } = req.body;
+    let { cumemescidi, fcmToken } = req.body;
 
-    // Guest user oluştur
-    const guestUser = new User({ cumemescidi, fcmToken });
+    // Eğer frontend obje yolladıysa normalize et
+    if (typeof fcmToken === "object" && fcmToken !== null) {
+      if (typeof fcmToken.data === "string") {
+        fcmToken = fcmToken.data;
+      } else {
+        fcmToken = String(fcmToken);
+      }
+    }
+
+    // Trimle ve kontrol et
+    fcmToken = fcmToken ? String(fcmToken).trim() : "";
+
+    // Token format kontrolü
+    const isExpoToken = /^ExponentPushToken\[[^\]]+\]$/.test(fcmToken);
+    const isExpoPushToken = /^ExpoPushToken\[[^\]]+\]$/.test(fcmToken);
+    const isFcmToken =
+      fcmToken.startsWith("ExponentPushToken[") ||
+      fcmToken.startsWith("ExpoPushToken[") ||
+      (fcmToken.length >= 20 &&
+        fcmToken.length <= 4096 &&
+        /^\S+$/.test(fcmToken));
+
+    if (fcmToken && !isExpoToken && !isExpoPushToken && !isFcmToken) {
+      console.log("Rejected token format:", fcmToken);
+      return res
+        .status(400)
+        .json({ success: false, message: "Geçersiz token formatı" });
+    }
+
+    // 🔹 Eğer token varsa, diğer kullanıcıların elindeki aynı token'ı temizle
+    if (fcmToken) {
+      // sadece fcmToken alanı dizi olan user'lara uygula
+      await User.updateMany(
+        { fcmToken: { $type: "array" } },
+        { $pull: { fcmToken: fcmToken } }
+      );
+    }
+
+
+    // 🔹 Yeni kullanıcı oluştur
+    const guestUser = new User({ cumemescidi });
+
+    // Token varsa ekle
+    if (fcmToken) {
+      guestUser.fcmToken = [fcmToken];
+    }
+
     await guestUser.save();
 
-    res.status(201).json({ success: true, userId: guestUser._id });
+    console.log("Yeni kullanıcı oluşturuldu:", guestUser._id);
+
+    res.status(201).json({
+      success: true,
+      message: "Kullanıcı ve token kaydı başarılı",
+      userId: guestUser._id,
+    });
   } catch (err) {
-    // Konsola detaylı log yaz
     console.error("Hata createaccount fonksiyonunda:", err);
     console.error("Hata stack trace:", err.stack);
     console.error("Request body:", req.body);
 
-    // Geliştirme ortamında daha detaylı dönebilirsiniz
     res.status(500).json({
       success: false,
       message: "Kullanıcı oluşturulurken hata oluştu.",
@@ -65,13 +114,13 @@ exports.signup = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User tapılmadı",
+        message: "İstifadəçi tapılmadı",
       });
     }
 
     // Email zaten var mı kontrol et (başka kullanıcıda)
     const existingEmailUser = await User.findOne({ email });
-    if (existingEmailUser && existingEmailUser._id.toString() !== userId) {
+    if (existingEmailUser) {
       return res.status(400).json({
         success: false,
         message: "Bu email artıq mövcuddur,Giriş edə bilərsiniz",
@@ -86,17 +135,22 @@ exports.signup = async (req, res) => {
       });
     }
 
+    const { accessToken, refreshToken } = generateTokens(user._id);
+    const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
     // Şifre hashing
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Guest user'ı update et
     user.email = email;
+    user.refreshToken = hashedrefreshtoken;
     user.password = hashedPassword;
     user.isGuest = false;
     await user.save();
 
     return res.status(200).json({
       success: true,
+      accessToken,
+      refreshToken,
       message: "Hesab uğurla yaradıldı",
       user: {
         id: user._id,
@@ -201,24 +255,21 @@ exports.login = async (req, res) => {
 
     if (!ispasswordcorrect) {
       logger.warn("Sifre yanlışdır", { email });
-
       return res.status(400).json({ hata: "Yanlış parol" });
     }
 
-    // Generate both access and refresh tokens
     const { accessToken, refreshToken } = generateTokens(existinguser._id);
 
-    // Save refresh token to database
-    // const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
-    // existinguser.refreshToken = hashedrefreshtoken;
+    const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
+    existinguser.isGuest = false;
+    existinguser.refreshToken = hashedrefreshtoken;
     await existinguser.save();
-    logger.info("Login ugurludur", { email });
-
+    
     return res.status(200).json({
-      mesaj: "Uğurlu giriş",
+      accessToken,
+      refreshToken,
       success: true,
-      // accessToken,
-      // refreshToken,
+      mesaj: "Giriş uğurludur",
       user: {
         id: existinguser._id,
         email: existinguser.email,
@@ -270,6 +321,7 @@ exports.refreshToken = async (req, res) => {
     await user.save();
 
     return res.status(200).json({
+      success:true,
       mesaj: "Token yeniləndi",
       accessToken,
       refreshToken: newRefreshToken, // frontend de bunu kaydetmeli
@@ -280,7 +332,7 @@ exports.refreshToken = async (req, res) => {
       return res.status(401).json({ hata: "Refresh token müddəti bitib" });
     }
     logger.error("Refresh token hatası", { error: err.message });
-    return res.status(401).json({ hata: "Geçersiz refresh token" });
+    return res.status(401).json({ hata: "Keçərsiz refresh token" });
   }
 };
 
@@ -397,6 +449,7 @@ exports.getme = async (req, res) => {
 };
 
 exports.changepassword = async (req, res) => {
+
   const { currentpassword, newpassword } = req.body;
   if (!req.userId) {
     return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
@@ -420,7 +473,7 @@ exports.changepassword = async (req, res) => {
     user.password = hashednewpassword;
     await user.save();
 
-    return res.status(200).json({ mesaj: "Şifrə uğurla yeniləndi" });
+    return res.status(200).json({ mesaj: "Şifrə uğurla yeniləndi",success:true });
   } catch (error) {
     console.error("Şifrə yeniləmə xətasi", error);
     res.status(500).json({ hata: "Server xetasi bas verdi" });
@@ -659,11 +712,10 @@ exports.imamlogin = async (req, res) => {
       surname: user.surname,
       name: user.name,
       cins: user.cins,
-      mescid:user.mescid
+      mescid: user.mescid,
     },
   });
 };
-
 
 // Add to backend/controller/authcontrol.js
 exports.getNotifications = async (req, res) => {
@@ -683,10 +735,10 @@ exports.changemescid = async (req, res) => {
   const { cumemescidi, userId } = req.body;
 
   try {
-    console.log('userid:',userId)
+    console.log("userid:", userId);
     const user = await User.findById(userId);
     if (!user) {
-      console.log('istifadəçi tapilmadi')
+      console.log("istifadəçi tapilmadi");
       return res.status(400).json({ hata: "Istifadəçi tapılmadı" });
     }
 

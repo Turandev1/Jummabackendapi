@@ -18,4 +18,4 @@ const keepAwake = async () => {
 };
 
 keepAwake();
-setInterval(keepAwake, 10 * 60 * 1000);
+setInterval(keepAwake, 13 * 60 * 1000);

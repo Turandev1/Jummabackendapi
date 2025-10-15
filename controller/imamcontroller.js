@@ -3,7 +3,6 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const User = require("../schema/Users");
 
-
 // Helper function to generate tokens
 const generateTokens = (userId) => {
   const accessToken = jwt.sign(
@@ -28,27 +27,12 @@ exports.imamsignup = async (req, res) => {
     email,
     seccode,
     password,
-    confirmpassword,
     role,
     phone,
     cins,
   } = req.body;
 
-  if (
-    !name ||
-    !surname ||
-    !email ||
-    !seccode ||
-    !password ||
-    !confirmpassword ||
-    !phone
-  ) {
-    return res.status(400).json({ hata: "Bütün məcburi sahələri doldurun" });
-  }
 
-  if (password !== confirmpassword) {
-    return res.status(400).json({ hata: "Parollar uyğun deyil" });
-  }
 
   const user = await Imam.findOne({ email });
 
@@ -79,13 +63,13 @@ exports.imamsignup = async (req, res) => {
 
 exports.imamlogin = async (req, res) => {
   const { email, password } = req.body;
-  const user = await Imam.findOne({ email, role: "imam" });
+  const imam = await Imam.findOne({ email, role: "imam" });
 
-  if (!user) {
+  if (!imam) {
     return res.status(400).json({ hata: "İstifadəçi tapılmadı" });
   }
 
-  const matchpass = await bcrypt.compare(password, user.password);
+  const matchpass = await bcrypt.compare(password, imam.password);
   // const matchseccode = await bcrypt.compare(seccode, user.securitycode);
 
   if (!matchpass) {
@@ -93,66 +77,86 @@ exports.imamlogin = async (req, res) => {
   }
 
   // access ve refresh token üret
-  const { accessToken, refreshToken } = generateTokens(user._id);
+  const { accessToken, refreshToken } = generateTokens(imam._id);
 
   // refresh token'ı DB’ye kaydet
-  user.refreshToken = refreshToken;
-  await user.save();
+  imam.refreshToken = refreshToken;
+  await imam.save();
 
   return res.status(200).json({
     mesaj: "Uğurlu giriş",
     accessToken,
     refreshToken,
     user: {
-      id: user._id,
-      phone: user.phone,
-      email: user.email,
-      role: user.role,
-      surname: user.surname,
-      name: user.name,
-      cins: user.cins,
-      mescid: user.mescid,
+      id: imam._id,
+      phone: imam.phone,
+      email: imam.email,
+      role: imam.role,
+      surname: imam.surname,
+      name: imam.name,
+      cins: imam.cins,
+      mescid: imam.mescid,
     },
   });
 };
 
-
-exports.verifyImamToken = async (req, res) => {
-  const authHeader =
-    req.headers["authorization"] || req.headers["Authorization"];
-  const token =
-    authHeader && authHeader.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-  if (!token) {
-    return res.status(401).json({ hata: "Token yoxdur" });
-  }
-
+exports.verifyimam = async (req, res) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const admin = await Imam.findById(decoded.userId || decoded.id);
-    if (!admin) {
-      return res.status(401).json({ hata: "İstifadəçi tapılmadı" });
+    const userId = req.ImamId;
+    console.log("imamid:", userId);
+    if (!userId) {
+      console.log("❌ [getImam] ImamId bulunamadı");
+      return res.status(401).json({
+        success: false,
+        message: "Yetkilendirme hatası: ImamId bulunamadı",
+      });
     }
 
-    return res.status(200).json({ mesaj: "Token keçərlidir", user: admin });
-  } catch (err) {
-    console.error("Token doğrulama xətası:", err);
-    return res.status(403).json({ hata: "Token etibarsız və ya vaxtı keçib" });
+    console.log("🔍 [getImam] Searching for Imam with ID:");
+
+    // Şifre, doğrulama kodu ve diğer hassas alanları hariç tut
+    const hiddenFields = "-password -__v";
+    const user = await Imam.findById(userId).select(hiddenFields);
+
+    if (!user) {
+      console.log("❌ [getImam] Imam not found for ID:");
+      return res.status(404).json({
+        success: false,
+        message: "Imam bulunamadı",
+      });
+    }
+
+    // console.log("✅ [getMe] User found:", {
+    //   id: user._id,
+    //   fullname: user.fullname,
+    //   email: user.email,
+    //   role: user.role
+    // });
+
+    return res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error("❌ [getImam] Imam bilgisi alınırken hata:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Sunucu hatası oluştu",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 
 exports.changeImamPassword = async (req, res) => {
   try {
-    const { currentPassword, newPassword, confirmPassword,email } = req.body;
-   
-    const imam = await Imam.findOne({email});
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    const imam = await Imam.findById(req.ImamId);
 
     if (!imam) {
       return res.status(404).json({ hata: "İmam hesabı tapılmadı" });
     }
-
 
     if (!currentPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({ hata: "Bütün sahələri doldurun" });
@@ -166,25 +170,25 @@ exports.changeImamPassword = async (req, res) => {
     if (newPassword !== confirmPassword) {
       return res.status(400).json({ hata: "Yeni şifrələr uyğun deyil" });
     }
-    
-    
+
     if (newPassword === currentPassword) {
-      return res.status(400).json({ hata: "Köhnə şifrəni istifadə edə bilməzsinizçyeni şifrə təyin edin" });
+      return res.status(400).json({
+        hata: "Köhnə şifrəni istifadə edə bilməzsinizçyeni şifrə təyin edin",
+      });
     }
 
     const hashedNew = await bcrypt.hash(newPassword, 10);
     imam.password = hashedNew;
     await imam.save();
 
-    return res.status(200).json({ mesaj: "Şifrə uğurla dəyişdirildi",success:true });
+    return res
+      .status(200)
+      .json({ mesaj: "Şifrə uğurla dəyişdirildi", success: true });
   } catch (error) {
     console.error("Şifrə dəyişmə xətası:", error);
     return res.status(500).json({ hata: "Server xətası" });
   }
 };
-
-
-
 
 exports.refreshToken = async (req, res) => {
   const { token } = req.body;
@@ -213,29 +217,14 @@ exports.refreshToken = async (req, res) => {
   }
 };
 
-
 exports.logout = async (req, res) => {
-  const authHeader =
-    req.headers["authorization"] || req.headers["Authorization"];
-  const token =
-    authHeader && authHeader.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-  if (!token) {
-    return res.status(400).json({ hata: "Token yoxdur" });
-  }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const admin = await Imam.findById(decoded.userId);
-    if (!admin) {
-      return res.status(404).json({ hata: "İstifadəçi tapılmadı" });
-    }
-
+    const { email } = req.body;
+    const imam = await Imam.findOne({ email });
+    console.log("imam:", imam);
     // refresh token'ı sıfırla
-    admin.refreshToken = null;
-    await admin.save();
+    imam.refreshToken = null;
+    await imam.save();
 
     return res.status(200).json({ mesaj: "Çıxış uğurlu" });
   } catch (err) {
@@ -245,8 +234,6 @@ exports.logout = async (req, res) => {
       .json({ hata: "Token etibarsız və ya artıq istifadə olunub" });
   }
 };
-
-
 
 exports.editimamacc = async (req, res) => {
   try {
@@ -330,13 +317,9 @@ exports.getmescids = async (req, res) => {
   try {
     const mescids = await Imam.find({ role: "imam" });
 
-
-    return res.status(200).json({ mesaj: "Good request",mescids });
+    return res.status(200).json({ mesaj: "Good request", mescids });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ hata: "Server error" });
   }
 };
-
-
-
