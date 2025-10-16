@@ -5,6 +5,7 @@ const adminschema = new mongoose.Schema(
     name: String,
     surname: String,
     email: String,
+    role:String,
     password: String,
     refreshToken: String,
   },
@@ -12,5 +13,11 @@ const adminschema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+
+
+
+
+
 
 module.exports = mongoose.model("Admin", adminschema, "adminler");

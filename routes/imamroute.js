@@ -7,7 +7,8 @@ const adminmiddleware=require('../middleware/adminmiddleware')
 
 // Public routes
 router.post("/imamsignup",webcontroller.imamsignup);
-router.post("/imamlogin",webcontroller.imamlogin);
+router.post("/imamlogin", webcontroller.imamlogin);
+router.post("/imamloginweb", webcontroller.imamloginweb);
 router.get("/verifyimam",adminmiddleware,webcontroller.verifyimam);
 router.post("/refreshtokens",webcontroller.refreshToken);
 

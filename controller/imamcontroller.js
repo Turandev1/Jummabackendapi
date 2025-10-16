@@ -2,13 +2,14 @@ const Imam = require("../schema/İmam");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const User = require("../schema/Users");
+const Session = require("../schema/Session");
 
 // Helper function to generate tokens
 const generateTokens = (userId) => {
   const accessToken = jwt.sign(
     { userId },
     process.env.JWT_SECRET,
-    { expiresIn: "1m" } // Access token expires in 25 minutes
+    { expiresIn: "20m" } // Access token expires in 25 minutes
   );
 
   const refreshToken = jwt.sign(
@@ -21,18 +22,8 @@ const generateTokens = (userId) => {
 };
 
 exports.imamsignup = async (req, res) => {
-  const {
-    name,
-    surname,
-    email,
-    seccode,
-    password,
-    role,
-    phone,
-    cins,
-  } = req.body;
-
-
+  const { name, surname, email, seccode, password, role, phone, cins } =
+    req.body;
 
   const user = await Imam.findOne({ email });
 
@@ -87,6 +78,60 @@ exports.imamlogin = async (req, res) => {
     mesaj: "Uğurlu giriş",
     accessToken,
     refreshToken,
+    user: {
+      id: imam._id,
+      phone: imam.phone,
+      email: imam.email,
+      role: imam.role,
+      surname: imam.surname,
+      name: imam.name,
+      cins: imam.cins,
+      mescid: imam.mescid,
+    },
+  });
+};
+
+exports.imamloginweb = async (req, res) => {
+  const { email, password } = req.body;
+  const imam = await Imam.findOne({ email, role: "imam" });
+
+  if (!imam) {
+    return res.status(400).json({ hata: "İstifadəçi tapılmadı" });
+  }
+
+  const matchpass = await bcrypt.compare(password, imam.password);
+  // const matchseccode = await bcrypt.compare(seccode, user.securitycode);
+
+  if (!matchpass) {
+    return res.status(400).json({ hata: "Şifrə yanlışdır" });
+  }
+
+  // access ve refresh token üret
+  const { accessToken, refreshToken } = generateTokens(imam._id);
+
+  // refresh token'ı DB’ye kaydet
+
+  await Session.create({
+    userId: imam._id,
+    userType: "Imam",
+    refreshToken,
+    device: "web",
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+    expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+  });
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 15 * 24 * 60 * 60 * 1000,
+  });
+  console.log("role:", imam.role);
+
+  return res.status(200).json({
+    mesaj: "Uğurlu giriş",
+    accessToken,
     user: {
       id: imam._id,
       phone: imam.phone,
@@ -217,14 +262,65 @@ exports.refreshToken = async (req, res) => {
   }
 };
 
+exports.refreshTokenweb = async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ hata: "Refresh token yoxdur" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+
+    const session = await Session.findOne({
+      userId: decoded.userId,
+      refreshToken: token,
+    });
+
+    if (!session) {
+      return res
+        .status(403)
+        .json({ hata: "Session tapılmadı və ya token keçərsiz" });
+    }
+
+    // Token geçerli → yeni access + refresh token üret
+    const { accessToken, refreshToken } = generateTokens(decoded.userId);
+
+    // Session güncelle
+    session.refreshToken = refreshToken;
+    session.expiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    await session.save();
+
+    // Cookie yenile
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 15 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({ accessToken });
+  } catch (err) {
+    console.error("Refresh token error:", err);
+    return res
+      .status(403)
+      .json({ hata: "Refresh token etibarsız və ya vaxtı keçib" });
+  }
+};
+
 exports.logout = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, token } = req.body;
     const imam = await Imam.findOne({ email });
-    console.log("imam:", imam);
-    // refresh token'ı sıfırla
+    if (!imam) return res.status(404).json({ hata: "İmam tapılmadı" });
+
+    // Mobil sistem için:
     imam.refreshToken = null;
     await imam.save();
+
+    // Web logout ise sadece ilgili session sil
+    if (token) {
+      await Session.deleteOne({ refreshToken: token });
+    }
 
     return res.status(200).json({ mesaj: "Çıxış uğurlu" });
   } catch (err) {

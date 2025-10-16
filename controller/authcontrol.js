@@ -236,7 +236,7 @@ exports.registerToken = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password ,fcmToken} = req.body;
 
   try {
     const existinguser = await User.findOne({ email });
@@ -263,6 +263,7 @@ exports.login = async (req, res) => {
     const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
     existinguser.isGuest = false;
     existinguser.refreshToken = hashedrefreshtoken;
+    existinguser.fcmToken=fcmToken
     await existinguser.save();
     
     return res.status(200).json({
@@ -360,7 +361,6 @@ exports.logout = async (req, res) => {
     // Clear refresh token from database
     await User.findByIdAndUpdate(userId, {
       refreshToken: null,
-      fcmToken: [],
       lastLogout: new Date(),
     });
 

@@ -42,7 +42,7 @@ exports.adminlogin = async (req, res) => {
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       maxAge: 15 * 24 * 60 * 60 * 1000,
     });
