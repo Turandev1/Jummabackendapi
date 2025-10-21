@@ -7,18 +7,22 @@ const ratelimit = require('../middleware/ratelimiter')
 
 router.post('/create-account',authcontroller.createaccount)
 router.post("/signup",ratelimit.authLimiter, authcontroller.signup);
-router.put("/login", validatelogin,ratelimit.authLimiter, authcontroller.login);
+router.put("/login", validatelogin, ratelimit.authLimiter, authcontroller.login);
+
 const { tokenRefreshLimiter } = require('../middleware/ratelimiter')
+
 router.post("/refresh", tokenRefreshLimiter, authcontroller.refreshToken); // New refresh token route
 router.post("/setgender", authcontroller.setgender);
 router.get("/getping", authcontroller.getping);
 //account process routes
-router.patch("/changepassword",authenticateUser, authcontroller.changepassword);
+
+router.patch("/changepassword", authenticateUser, authcontroller.changepassword);
 router.post("/forgotpasssendcode",ratelimit.authLimiter, authcontroller.forgotpasssendcode);
 router.post("/forgotpassverify",ratelimit.authLimiter, authcontroller.forgotpassverify);
 router.post("/forgotpasschange", authcontroller.forgotpasschange);
 router.post("/imamlogin", authcontroller.imamlogin);
 router.post("/getimam", authcontroller.getimam);
+router.post('/notifstatus',authcontroller.notifstatus)
 //post servere yeni bir sey elave et
 //put datani tamamen silib yeniden yazir
 //patch qismi yenileme ucun istifade olunur

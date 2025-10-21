@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const User = require("../schema/Users");
 const Session = require("../schema/Session");
-
+const Iane = require("../schema/Iane");
 // Helper function to generate tokens
 const generateTokens = (userId) => {
   const accessToken = jwt.sign(
@@ -417,5 +417,38 @@ exports.getmescids = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ hata: "Server error" });
+  }
+};
+
+exports.setiane = async (req, res) => {
+  try {
+    const { basliq, movzu, miqdar, mescid, imamname, imamsurname, imamId } =
+      req.body;
+
+    const yeniiane = {
+      amount: miqdar,
+      basliq,
+      movzu,
+      status: "pending",
+      yigilanmebleg: 0,
+    };
+
+    const result = await Iane.findOneAndUpdate(
+      { imamId },
+      {
+        $setOnInsert: {
+          imamId,
+          imamname,
+          imamsurname,
+          mescid,
+        },
+        $push: {
+          ianeler: yeniiane,
+        },
+      },
+      { new: true, upsert: true }
+    );
+  } catch (error) {
+    console.error(error);
   }
 };

@@ -11,6 +11,7 @@ router.post("/imamlogin", webcontroller.imamlogin);
 router.post("/imamloginweb", webcontroller.imamloginweb);
 router.get("/verifyimam",adminmiddleware,webcontroller.verifyimam);
 router.post("/refreshtokens",webcontroller.refreshToken);
+router.post("/refreshtokenweb", webcontroller.refreshTokenweb);
 
 // Protected routes
 router.post("/changepassword",adminmiddleware,webcontroller.changeImamPassword);

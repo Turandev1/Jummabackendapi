@@ -6,11 +6,6 @@ const { sendFCMNotification } = require("../firebase");
 exports.sendcumanotification = async (req, res) => {
   try {
     const { senderId, title, body, mescidId, time } = req.body;
-    console.log('senderId:', senderId)
-    console.log('title:', title)
-    console.log('body:', body)
-    console.log('mescidId:', mescidId)
-    console.log('time:', time)
     if (!senderId || !title || !body || !mescidId) {
       return res.status(400).json({ error: "Eksik veri" });
     }
@@ -25,6 +20,7 @@ exports.sendcumanotification = async (req, res) => {
     const users = await User.find({
       "cumemescidi.id": mescidId,
       fcmToken: { $exists: true, $ne: [] },
+      notificationstatus:true
     })
       .select("_id fcmToken cumemescidi")
       .lean();

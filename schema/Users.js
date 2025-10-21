@@ -28,6 +28,7 @@ const userschema = new mongoose.Schema(
     refreshToken: String,
     mesajlar: [messageschema],
     fcmToken: { type: [String], default: [] }, // burası düzeltildi
+    notificationstatus: { type: Boolean, default: true },
     notificationPreferences: {
       prayerReminders: { type: Boolean, default: true },
       announcements: { type: Boolean, default: true },

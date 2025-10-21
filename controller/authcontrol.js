@@ -750,3 +750,28 @@ exports.changemescid = async (req, res) => {
     return res.status(500).json({ error: "Server xetasi" });
   }
 };
+
+
+exports.notifstatus = async (req, res) => {
+  try {
+    const { userId, enabled } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ hata: "Istifadəçi tapılmadı" });
+    }
+
+    user.notificationstatus = enabled;
+    await user.save()
+
+    return res.status(200).json({
+      success: true,
+      mesaj: enabled ? "Bildirişlər aktiv edildi" : "Bildirişlər bağlandı",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ hata: "Server error" });
+  }
+};
+
+
