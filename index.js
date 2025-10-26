@@ -7,21 +7,25 @@ require("./ping");
 const { validateEnvironment } = require("./config/environment");
 const { generalLimiter } = require("./middleware/ratelimiter");
 validateEnvironment();
-const http=require("http");
+const http = require("http");
 const server = http.createServer(app);
 const { Server } = require("socket.io");
+const bodyparser = require("body-parser");
+
+const cookieparser = require("cookie-parser");
+
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
 
-global._io = io
+global._io = io;
 io.on("connection", (socket) => {
-  console.log("a user connected",socket.id);  
+  console.log("a user connected", socket.id);
   socket.on("disconnect", () => {
-    console.log("user disconnected",socket.id);
+    console.log("user disconnected", socket.id);
   });
 });
 
@@ -52,9 +56,10 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-
 // ✅ JSON parser
 app.use(express.json());
+app.use(cookieparser());
+app.use(bodyparser.json());
 
 // ✅ MongoDB bağlantısı
 if (!process.env.MONGO_URI) {
@@ -76,8 +81,6 @@ app.use("/api/app", generalLimiter, approutes);
 app.use("/api/notification", generalLimiter, notificationroutes);
 app.use("/webapi/imam", imamroutes);
 app.use("/webapi/admin", adminroutes);
-
-
 // ✅ Hata yakalama
 app.use(errorhandler);
 

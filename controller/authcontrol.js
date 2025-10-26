@@ -6,6 +6,8 @@ const crypto = require("crypto");
 const logger = require("../utils/logger");
 const sendMail = require("../utils/mailer");
 const Imam = require("../schema/İmam");
+const axios = require("axios");
+const Iane = require("../schema/Iane");
 
 // Helper: token üretimi
 const generateTokens = (userId) => {
@@ -64,7 +66,6 @@ exports.createaccount = async (req, res) => {
       );
     }
 
-
     // 🔹 Yeni kullanıcı oluştur
     const guestUser = new User({ cumemescidi });
 
@@ -95,7 +96,6 @@ exports.createaccount = async (req, res) => {
     });
   }
 };
-
 
 exports.signup = async (req, res) => {
   try {
@@ -236,7 +236,7 @@ exports.registerToken = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
-  const { email, password ,fcmToken} = req.body;
+  const { email, password, fcmToken } = req.body;
 
   try {
     const existinguser = await User.findOne({ email });
@@ -263,9 +263,9 @@ exports.login = async (req, res) => {
     const hashedrefreshtoken = await bcrypt.hash(refreshToken, 10);
     existinguser.isGuest = false;
     existinguser.refreshToken = hashedrefreshtoken;
-    existinguser.fcmToken=fcmToken
+    existinguser.fcmToken = fcmToken;
     await existinguser.save();
-    
+
     return res.status(200).json({
       accessToken,
       refreshToken,
@@ -322,7 +322,7 @@ exports.refreshToken = async (req, res) => {
     await user.save();
 
     return res.status(200).json({
-      success:true,
+      success: true,
       mesaj: "Token yeniləndi",
       accessToken,
       refreshToken: newRefreshToken, // frontend de bunu kaydetmeli
@@ -449,7 +449,6 @@ exports.getme = async (req, res) => {
 };
 
 exports.changepassword = async (req, res) => {
-
   const { currentpassword, newpassword } = req.body;
   if (!req.userId) {
     return res.status(401).json({ hata: "İstifadəçi doğrulama uğursuzdur" });
@@ -473,7 +472,9 @@ exports.changepassword = async (req, res) => {
     user.password = hashednewpassword;
     await user.save();
 
-    return res.status(200).json({ mesaj: "Şifrə uğurla yeniləndi",success:true });
+    return res
+      .status(200)
+      .json({ mesaj: "Şifrə uğurla yeniləndi", success: true });
   } catch (error) {
     console.error("Şifrə yeniləmə xətasi", error);
     res.status(500).json({ hata: "Server xetasi bas verdi" });
@@ -751,7 +752,6 @@ exports.changemescid = async (req, res) => {
   }
 };
 
-
 exports.notifstatus = async (req, res) => {
   try {
     const { userId, enabled } = req.body;
@@ -762,7 +762,7 @@ exports.notifstatus = async (req, res) => {
     }
 
     user.notificationstatus = enabled;
-    await user.save()
+    await user.save();
 
     return res.status(200).json({
       success: true,
@@ -774,4 +774,98 @@ exports.notifstatus = async (req, res) => {
   }
 };
 
+exports.createpaymentorder = async (req, res) => {
+  try {
+    const { amount, ianeId } = req.body;
 
+    // .env parametrləri
+    const EPOINT_PUBLIC_KEY = process.env.EPOINT_PUBLIC_KEY;
+    const EPOINT_PRIVATE_KEY = process.env.EPOINT_PRIVATE_KEY;
+
+    // 1️⃣ Data JSON hazırlamaq
+    const paymentData = {
+      public_key: EPOINT_PUBLIC_KEY,
+      amount: Number(amount),
+      currency: "AZN",
+      language: "az",
+      order_id: ianeId,
+      description: "İanə ödənişi",
+      success_redirect_url: "https://yourfrontend.com/payment-success",
+      error_redirect_url: "https://yourfrontend.com/payment-fail",
+    };
+
+    const data = Buffer.from(JSON.stringify(paymentData)).toString("base64");
+
+    const sgnstring = EPOINT_PRIVATE_KEY + data + EPOINT_PRIVATE_KEY;
+    const hash = crypto.createHash("sha1").update(sgnstring).digest();
+    const signature = hash.toString("base64");
+
+    // 3️⃣ Epoint /request endpoint-ə POST
+    const response = await axios.post("https://epoint.az/api/1/request", {
+      data,
+      signature,
+    });
+
+    console.log("response:", response.data);
+
+    // 4️⃣ Redirect URL-i frontend-ə göndərmək
+    return res.json({
+      success: true,
+      redirect_url: response.data.redirect_url,
+    });
+  } catch (error) {
+    console.error("Epoint error:", error.response?.data || error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Epoint sorğusu uğursuz oldu",
+    });
+  }
+};
+
+exports.paymentsuccess = async (req, res) => {
+  try {
+    const { ianeId, amount, description, paymentId } = req.body;
+
+    const iane = await Iane.findById(ianeId);
+    if (!iane) return res.status(404).json({ message: "İanə tapılmadı" });
+
+    iane.odenisler.push({
+      id: paymentId,
+      miqdar: amount,
+      description,
+    });
+
+    // həmçinin yigilanmeblegi güncəllə
+    iane.yigilanmebleg += Number(amount);
+
+    await iane.save();
+
+    return res.json({ success: true, message: "Ödəniş qeyd edildi" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Server xətası" });
+  }
+};
+
+
+
+
+
+
+
+exports.paymentfail = async (req, res) => {
+  try {
+    const { ianeId, reason } = req.body;
+
+    const iane = await Iane.findById(ianeId);
+    if (!iane) return res.status(404).json({ message: "İanə tapılmadı" });
+
+    iane.failedpayments.push({ reason });
+    await iane.save();
+
+    return res.json({ success: true, message: "Uğursuz ödəniş qeyd edildi" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Server xətası" });
+  }
+};

@@ -1,6 +1,7 @@
 const Admin = require("../schema/Admin");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const Iane = require("../schema/Iane");
 
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
@@ -14,6 +15,35 @@ const generateTokens = (userId) => {
   );
 
   return { accessToken, refreshToken };
+};
+
+exports.signupadmin = async (req, res) => {
+  try {
+    const { name, surname, username, email, password } = req.body;
+
+    if (!name || !surname || !username || !email || !password) {
+      console.log("bilgiler eskikdir");
+      return res.status(404).json({ hata: "Butun saheleri doldurun" });
+    }
+
+    const hashedpassword = await bcrypt.hash(password, 10);
+
+    const newadmin = new Admin({
+      name,
+      surname,
+      username,
+      email,
+      password: hashedpassword,
+      role: "admin",
+    });
+
+    return res
+      .status(201)
+      .json({ message: "Admin ugurla qeyd edildi", newadmin, success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ hata: "Server xetasi", error });
+  }
 };
 
 exports.adminlogin = async (req, res) => {
@@ -94,5 +124,108 @@ exports.adminlogout = async (req, res) => {
     return res.status(200).json({ mesaj: "Çıxış ugurludur", success: true });
   } catch (error) {
     console.error(error);
+  }
+};
+
+exports.editadmin = async (req, res) => {
+  try {
+    const { name, surname, email, username, id } = req.body;
+    const admin = await Admin.findById(id);
+    if (!admin) {
+      console.log("Admin tapılmadı");
+      return res.status(404).json({ hata: "Admin tapılmadı", success: false });
+    }
+
+    admin.name = name;
+    admin.surname = surname;
+    admin.username = username;
+    admin.email = email;
+
+    await admin.save();
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Ugurla deyisdi", admin });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ hata: "Server xetasi", success: false, error });
+  }
+};
+
+exports.getianeler = async (req, res) => {
+  try {
+    const imams = await Iane.find();
+
+    res.status(200).json({ success: true, imams });
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+exports.markasread = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const iane = await Iane.findById(id);
+    iane.isread = true;
+    await iane.save();
+
+    res
+      .status(200)
+      .json({ success: true, message: "İane okundu olarak işaretlendi" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Sunucu hatası" });
+  }
+};
+
+exports.markasunread = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const iane = await Iane.findById(id);
+    iane.isread = false;
+    iane.save();
+
+    res
+      .status(200)
+      .json({ success: true, message: "İane okundu olarak işaretlendi" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Sunucu hatası" });
+  }
+};
+
+exports.approveiane = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const iane = await Iane.findById(id);
+    iane.status = "approved";
+    iane.approved = true;
+
+    await iane.save();
+    res.json({ success: true, message: "İane onaylandı" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.rejectiane = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const iane = await Iane.findById(id);
+    iane.status = "rejected";
+    iane.approved = false;
+
+    await iane.save();
+    res.json({ success: true, message: "İane onaylandı" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
 };

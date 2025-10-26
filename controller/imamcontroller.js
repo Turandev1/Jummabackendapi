@@ -9,7 +9,7 @@ const generateTokens = (userId) => {
   const accessToken = jwt.sign(
     { userId },
     process.env.JWT_SECRET,
-    { expiresIn: "20m" } // Access token expires in 25 minutes
+    { expiresIn: "20s" } // Access token expires in 25 minutes
   );
 
   const refreshToken = jwt.sign(
@@ -123,8 +123,8 @@ exports.imamloginweb = async (req, res) => {
 
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: false,
+    sameSite: "lax",
     maxAge: 15 * 24 * 60 * 60 * 1000,
   });
   console.log("role:", imam.role);
@@ -263,13 +263,29 @@ exports.refreshToken = async (req, res) => {
 };
 
 exports.refreshTokenweb = async (req, res) => {
-  const { token } = req.body;
-  if (!token) {
-    return res.status(400).json({ hata: "Refresh token yoxdur" });
-  }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    if (!req.cookies) {
+      console.warn("refreshTokenweb: req.cookies is undefined");
+      return res.status(400).json({ hata: "No cookies present" });
+    }
+    console.log("cookies:", req.cookies);
+    const token = req.cookies.refreshToken;
+    if (!token) {
+      console.log("token:", token);
+      return res
+        .status(400)
+        .json({ hata: "Refresh token yoxdur (cookie yok)" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    } catch (err) {
+      console.error("Refresh token verify failed:", err);
+      return res
+        .status(403)
+        .json({ hata: "Refresh token etibarsız və ya vaxtı keçib" });
+    }
 
     const session = await Session.findOne({
       userId: decoded.userId,
@@ -277,33 +293,32 @@ exports.refreshTokenweb = async (req, res) => {
     });
 
     if (!session) {
+      console.warn("refreshTokenweb: session not found for token");
       return res
         .status(403)
         .json({ hata: "Session tapılmadı və ya token keçərsiz" });
     }
 
-    // Token geçerli → yeni access + refresh token üret
+    // Token valid — create new tokens
     const { accessToken, refreshToken } = generateTokens(decoded.userId);
 
-    // Session güncelle
+    // update session
     session.refreshToken = refreshToken;
     session.expiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
     await session.save();
 
-    // Cookie yenile
+    // refresh cookie options — sameSite should be 'lax' or 'none' depending on your cross-site needs
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: false,
+      sameSite: "lax", // or 'none' + secure:true if cross-site cookie required
       maxAge: 15 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({ accessToken });
   } catch (err) {
-    console.error("Refresh token error:", err);
-    return res
-      .status(403)
-      .json({ hata: "Refresh token etibarsız və ya vaxtı keçib" });
+    console.error("Unexpected error in refreshTokenweb:", err);
+    return res.status(500).json({ hata: "Server xətası", error: err.message });
   }
 };
 
@@ -333,35 +348,44 @@ exports.logout = async (req, res) => {
 
 exports.editimamacc = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, surname, email, role, mescid } = req.body;
+    const { name, surname, email, phone, mescid, id } = req.body;
+
     const imam = await Imam.findById(id);
     if (!imam) {
-      return res.status(404).json({ hata: "Imam hesabi movcud deyil" });
+      return res.status(404).json({ success: false, hata: "Imam tapılmadı" });
     }
-    const updatedImam = await Imam.findByIdAndUpdate(
-      id,
-      {
-        name,
-        surname,
-        email,
-        role,
-        mescid: {
-          name: mescid?.name,
-          location: mescid?.location,
-          latitude: mescid?.latitude,
-          longitude: mescid?.longitude,
-        },
+
+    imam.name = name || imam.name;
+    imam.surname = surname || imam.surname;
+    imam.email = email || imam.email;
+    imam.phone = phone || imam.phone;
+    imam.mescid.name = mescid.name || imam.mescid?.name;
+    imam.mescid.location = mescid.location || imam.mescid?.location;
+    imam.mescid.latitude = mescid.latitude || imam.mescid?.latitude;
+    imam.mescid.longitude = mescid.longitude || imam.mescid?.longitude;
+
+    const updatedImam = await imam.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "İmam məlumatları uğurla yeniləndi ✅",
+      imam: {
+        id: updatedImam._id,
+        name: updatedImam.name,
+        surname: updatedImam.surname,
+        email: updatedImam.email,
+        phone: updatedImam.phone,
+        mescid: updatedImam.mescid,
+        role: updatedImam.role,
       },
-      { new: true }
-    );
-    if (!updatedImam) {
-      return res.status(404).json({ message: "İmam bulunamadı" });
-    }
-    res.status(200).json({ message: "İmam güncellendi", user: updatedImam });
+    });
   } catch (error) {
     console.error("İmam güncellenirken hata:", error);
-    res.status(500).json({ message: "Sunucu hatası" });
+    return res.status(500).json({
+      success: false,
+      message: "Sunucu hatası",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 
@@ -422,33 +446,42 @@ exports.getmescids = async (req, res) => {
 
 exports.setiane = async (req, res) => {
   try {
-    const { basliq, movzu, miqdar, mescid, imamname, imamsurname, imamId } =
-      req.body;
-
-    const yeniiane = {
-      amount: miqdar,
+    const {
       basliq,
       movzu,
-      status: "pending",
-      yigilanmebleg: 0,
-    };
+      miqdar,
+      mescid,
+      imamname,
+      imamsurname,
+      email,
+      id,
+      photos,
+    } = req.body;
 
-    const result = await Iane.findOneAndUpdate(
-      { imamId },
-      {
-        $setOnInsert: {
-          imamId,
-          imamname,
-          imamsurname,
-          mescid,
-        },
-        $push: {
-          ianeler: yeniiane,
-        },
-      },
-      { new: true, upsert: true }
-    );
+    const result = new Iane({
+      imamname,
+      imamsurname,
+      mescid,
+      email,
+      id,
+      miqdar,
+      movzu,
+      basliq,
+      photos,
+    });
+
+    await result.save();
+
+    if (!result) {
+      console.log("result yoxdur", result);
+      return res.status(400).json({ hata: "İanə qeyd edilə bilmədi" });
+    }
+
+    return res
+      .status(200)
+      .json({ message: "İanə ugurla qeyd edildi", success: true });
   } catch (error) {
     console.error(error);
+    return res.status(500).json({ hata: "Server xetasi", success: false });
   }
 };
